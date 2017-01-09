@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 AddCSLuaFile()
 
 if (CLIENT) then
@@ -118,7 +103,9 @@ function SWEP:Precache()
 	util.PrecacheSound("physics/plastic/plastic_box_impact_hard1.wav")	
 	util.PrecacheSound("physics/plastic/plastic_box_impact_hard2.wav")	
 	util.PrecacheSound("physics/plastic/plastic_box_impact_hard3.wav")	
-	util.PrecacheSound("physics/plastic/plastic_box_impact_hard4.wav")	
+	util.PrecacheSound("physics/plastic/plastic_box_impact_hard4.wav")
+	util.PrecacheSound("physics/wood/wood_crate_impact_hard2.wav")
+	util.PrecacheSound("physics/wood/wood_crate_impact_hard3.wav")
 end
 
 function SWEP:Initialize()
@@ -175,10 +162,13 @@ function SWEP:PrimaryAttack()
 	timer.Simple(0.055, function()
 		if (IsValid(self) and IsValid(self.Owner)) then
 			local damage = self.Primary.Damage
-			local result = hook.Run("PlayerGetFistDamage", self.Owner, damage)
+			local context = {damage = damage}
+			local result = hook.Run("PlayerGetFistDamage", self.Owner, damage, context)
 
 			if (result != nil) then
 				damage = result
+			else
+				damage = context.damage
 			end
 
 			self.Owner:LagCompensation(true)
@@ -222,7 +212,7 @@ function SWEP:onCanCarry(entity)
 		return false
 	end
 
-	if (IsValid(entity.carrier)) then
+	if (IsValid(entity.carrier) or IsValid(self.heldEntity)) then
 		return false
 	end
 
@@ -234,8 +224,12 @@ function SWEP:doPickup(entity)
 		return
 	end
 
-	timer.Simple(FrameTime() * 10, function()
-		if (!IsValid(entity) or entity:IsPlayerHolding()) then
+	self.heldEntity = entity
+
+	timer.Simple(0.2, function()
+		if (!IsValid(entity) or entity:IsPlayerHolding() or self.heldEntity != entity) then
+			self.heldEntity = nil
+
 			return
 		end
 
@@ -265,7 +259,7 @@ function SWEP:SecondaryAttack()
 			end
 
 			self.Owner:ViewPunch(Angle(-1.3, 1.8, 0))
-			self.Owner:EmitSound("physics/plastic/plastic_box_impact_hard"..math.random(1, 4)..".wav")	
+			self.Owner:EmitSound("physics/wood/wood_crate_impact_hard"..math.random(2, 3)..".wav")	
 			self.Owner:SetAnimation(PLAYER_ATTACK1)
 
 			self:DoPunchAnimation()
@@ -276,6 +270,8 @@ function SWEP:SecondaryAttack()
 			physObj:Wake()
 
 			self:doPickup(entity)
+		elseif (IsValid(self.heldEntity) and !self.heldEntity:IsPlayerHolding()) then
+			self.heldEntity = nil
 		end
 	end
 end

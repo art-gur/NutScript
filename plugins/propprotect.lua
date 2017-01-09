@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 PLUGIN.name = "Basic Prop Protection"
 PLUGIN.author = "Chessnut"
 PLUGIN.desc = "Adds a simple prop protection system."
@@ -96,7 +81,7 @@ if (SERVER) then
 
 	function PLUGIN:CanProperty(client, property, entity)
 		if (entity:GetCreator() == client and (property == "remover" or property == "collision")) then
-			nut.log.add(client:Name().." used "..property.." on "..getLogName(entity))
+			nut.log.add(client, " used "..property.." on "..getLogName(entity))
 
 			return true
 		end
@@ -112,7 +97,7 @@ if (SERVER) then
 
 	function PLUGIN:PlayerSpawnedEntity(client, entity)
 		entity:SetCreator(client)
-		nut.log.add(client:Name().." spawned "..getLogName(entity))
+		nut.log.add(client, "spawned "..getLogName(entity))
 	end
 
 	function PLUGIN:PlayerSpawnedProp(client, model, entity)

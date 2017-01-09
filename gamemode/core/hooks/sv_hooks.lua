@@ -1,22 +1,8 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 function GM:PlayerInitialSpawn(client)
 	client.nutJoinTime = RealTime()
 	
 	if (client:IsBot()) then
+		local botID = os.time()
 		local index = math.random(1, table.Count(nut.faction.indices))
 		local faction = nut.faction.indices[index]
 
@@ -24,26 +10,38 @@ function GM:PlayerInitialSpawn(client)
 			name = client:Name(),
 			faction = faction and faction.uniqueID or "unknown",
 			model = faction and table.Random(faction.models) or "models/gman.mdl"
-		}, os.time(), client, client:SteamID64())
+		}, botID, client, client:SteamID64())
 		character.isBot = true
+
+		local inventory = nut.item.createInv(nut.config.get("invW"), nut.config.get("invH"), botID)
+		inventory:setOwner(botID)
+		inventory.noSave = true
+
+		character.vars.inv = {inventory}
+
 		nut.char.loaded[os.time()] = character
 
-		client:Spawn()
 		character:setup()
+		client:Spawn()
 
 		return
 	end
 
 	nut.config.send(client)
-
+	nut.date.send(client)
+	
 	client:loadNutData(function(data)
 		if (!IsValid(client)) then return end
 
-		netstream.Start(client, "nutDataSync", data)
-		
+		local address = nut.util.getAddress()			
+		local noCache = client:getNutData("lastIP", address) != address
+		client:setNutData("lastIP", address)
+
+		netstream.Start(client, "nutDataSync", data, client.nutPlayTime)
+
 		nut.char.restore(client, function(charList)
 			if (!IsValid(client)) then return end
-			
+
 			MsgN("Loaded ("..table.concat(charList, ", ")..") for "..client:Name())
 
 			for k, v in ipairs(charList) do
@@ -61,19 +59,26 @@ function GM:PlayerInitialSpawn(client)
 			client.nutLoaded = true
 
 			client:setNutData("intro", true)
-		end)
+		end, noCache)
 	end)
 
 	client:SetNoDraw(true)
+	client:SetNotSolid(true)
+	client:Lock()
 
 	timer.Simple(1, function()
 		if (!IsValid(client)) then return end
 		
 		client:KillSilent()
+		client:StripAmmo()
 	end)
 end
 
 function GM:PlayerUse(client, entity)
+	if (client:getNetVar("restricted")) then
+		return false
+	end
+
 	if (entity:isDoor()) then
 		local result = hook.Run("CanPlayerUseDoor", client, entity)
 
@@ -101,7 +106,7 @@ function GM:KeyPress(client, key)
 			data.filter = client
 		local entity = util.TraceLine(data).Entity
 
-		if (IsValid(entity) and entity:isDoor()) then
+		if (IsValid(entity) and entity:isDoor() or entity:IsPlayer()) then
 			hook.Run("PlayerUse", client, entity)
 		end
 	end
@@ -114,6 +119,10 @@ function GM:KeyRelease(client, key)
 end
 
 function GM:CanPlayerInteractItem(client, action, item)
+	if (client:getNetVar("restricted")) then
+		return false
+	end
+
 	if (action == "drop" and hook.Run("CanPlayerDropItem", client, item) == false) then
 		return false
 	end
@@ -129,8 +138,8 @@ function GM:CanPlayerTakeItem(client, item)
 	if (type(item) == "Entity") then
 		local char = client:getChar()
 		
-		if (item.prevOwner and item.prevPlayer and item.prevPlayer == client and item.prevOwner != char.id) then
-			client:notify(L("playerCharBelonging", client))
+		if (item.nutSteamID and item.nutSteamID == client:SteamID() and item.nutCharID != char:getID()) then
+			client:notifyLocalized("playerCharBelonging")
 
 			return false
 		end
@@ -198,6 +207,17 @@ function GM:PlayerLoadedChar(client, character, lastChar)
 		client.nutRagdoll:Remove()
 	end
 
+	local faction = nut.faction.indices[character:getFaction()]
+
+	if (faction and faction.pay and faction.pay > 0) then
+		timer.Create("nutSalary"..client:UniqueID(), faction.payTime or 300, 0, function()
+			local pay = hook.Run("GetSalaryAmount", client, faction) or faction.pay
+
+			character:giveMoney(pay)
+			client:notifyLocalized("salary", nut.currency.get(pay))
+		end)
+	end
+
 	hook.Run("PlayerLoadout", client)
 end
 
@@ -230,7 +250,9 @@ function GM:PlayerSay(client, message)
 		end
 	end
 
-	nut.chat.send(client, chatType, hook.Run("PlayerMessageSend", client, chatType, message, anonymous) or message, anonymous)
+	nut.chat.send(client, chatType, message, anonymous)
+	nut.log.add(client:Name().." said ["..chatType:upper().."] \""..message.."\"")
+
 	hook.Run("PostPlayerSay", client, message, chatType, anonymous)
 
 	return ""
@@ -238,7 +260,10 @@ end
 
 function GM:PlayerSpawn(client)
 	client:SetNoDraw(false)
+	client:UnLock()
+	client:SetNotSolid(false)
 	client:setAction()
+
 	hook.Run("PlayerLoadout", client)
 end
 
@@ -248,9 +273,15 @@ local IsAdmin = function(_, client) return client:IsAdmin() end
 -- Set the gamemode hooks to the appropriate shortcuts.
 GM.PlayerGiveSWEP = IsAdmin
 GM.PlayerSpawnEffect = IsAdmin
-GM.PlayerSpawnNPC = IsAdmin
 GM.PlayerSpawnSENT = IsAdmin
-GM.PlayerSpawnVehicle = IsAdmin
+
+function GM:PlayerSpawnNPC(client, npcType, weapon)
+	return client:IsAdmin() or client:getChar():hasFlags("n")
+end
+
+function GM:PlayerSpawnSWEP(client, weapon, info)
+	return client:IsAdmin()
+end
 
 function GM:PlayerSpawnProp(client)
 	if (client:getChar() and client:getChar():hasFlags("e")) then
@@ -268,6 +299,18 @@ function GM:PlayerSpawnRagdoll(client)
 	return false
 end
 
+function GM:PlayerSpawnVehicle(client, model, name, data)
+	if (client:getChar()) then
+		if (data.Category == "Chairs") then
+			return client:getChar():hasFlags("c")
+		else
+			return client:getChar():hasFlags("C")
+		end
+	end
+	
+	return false
+end
+
 -- Called when weapons should be given to a player.
 function GM:PlayerLoadout(client)
 	if (client.nutSkipLoadout) then
@@ -277,7 +320,6 @@ function GM:PlayerLoadout(client)
 	end
 	
 	client:SetWeaponColor(Vector(client:GetInfo("cl_weaponcolor")))
-	client:StripAmmo()
 	client:StripWeapons()
 	client:setLocalVar("blur", nil)
 
@@ -289,7 +331,6 @@ function GM:PlayerLoadout(client)
 		-- Set their player model to the character's model.
 		client:SetModel(character:getModel())
 		client:Give("nut_hands")
-		client:SelectWeapon("nut_hands")
 		client:SetWalkSpeed(nut.config.get("walkSpeed"))
 		client:SetRunSpeed(nut.config.get("runSpeed"))
 		
@@ -309,11 +350,32 @@ function GM:PlayerLoadout(client)
 			end
 		end
 
+		-- Ditto, but for classes.
+		local class = nut.class.list[client:getChar():getClass()]
+
+		if (class) then
+			if (class.onSpawn) then
+				class:onSpawn(client)
+			end
+
+			if (class.weapons) then
+				for k, v in ipairs(class.weapons) do
+					client:Give(v)
+				end
+			end
+		end
+
 		-- Apply any flags as needed.
 		nut.flag.onSpawn(client)
 		nut.attribs.setup(client)
 
 		hook.Run("PostPlayerLoadout", client)
+
+		client:SelectWeapon("nut_hands")
+	else
+		client:SetNoDraw(true)
+		client:Lock()
+		client:SetNotSolid(true)
 	end
 end
 
@@ -323,35 +385,12 @@ function GM:PostPlayerLoadout(client)
 
 	if (char:getInv()) then
 		for k, v in pairs(char:getInv():getItems()) do
+			v:call("onLoadout", client)
+
 			if (v:getData("equip")) then
 				if (v.attribBoosts) then
 					for k, v in pairs(v.attribBoosts) do
 						char:addBoost(v.uniqueID, k, v)
-					end
-				end
-
-				if (v.isWeapon) then
-					client.carryWeapons = {}
-
-					local weapon = client:Give(v.class)
-
-					if (IsValid(weapon)) then
-						local ammo = v:getData("ammo")
-
-						client.carryWeapons[v.weaponCategory] = weapon
-
-						local count = weapon:Clip1()
-						local ammoType = weapon:GetPrimaryAmmoType()
-
-						if (client:GetAmmoCount(ammoType) >= count) then
-							client:RemoveAmmo(count, ammoType)
-						end
-
-						if (ammo) then
-							weapon:SetClip1(ammo)
-						end
-					else
-						print(Format("[Nutscript] Weapon %s does not exist!", v.class))
 					end
 				end
 			end
@@ -366,22 +405,24 @@ local deathSounds = {
 }
 
 function GM:PlayerDeath(client, inflictor, attacker)
-	if (IsValid(client.nutRagdoll)) then
-		client.nutRagdoll.nutIgnoreDelete = true
-		client.nutRagdoll:Remove()
-		client:setLocalVar("blur", nil)
+	if (client:getChar()) then
+		if (IsValid(client.nutRagdoll)) then
+			client.nutRagdoll.nutIgnoreDelete = true
+			client.nutRagdoll:Remove()
+			client:setLocalVar("blur", nil)
+		end
+
+		client:setNetVar("deathStartTime", CurTime())
+		client:setNetVar("deathTime", CurTime() + nut.config.get("spawnTime", 5))
+
+		local deathSound = hook.Run("GetPlayerDeathSound", client) or table.Random(deathSounds)
+
+		if (client:isFemale() and !deathSound:find("female")) then
+			deathSound = deathSound:gsub("male", "female")
+		end
+
+		client:EmitSound(deathSound)
 	end
-
-	client:setNetVar("deathStartTime", CurTime())
-	client:setNetVar("deathTime", CurTime() + nut.config.get("spawnTime", 5))
-
-	local deathSound = hook.Run("GetPlayerDeathSound", client) or table.Random(deathSounds)
-
-	if (client:isFemale() and !deathSound:find("female")) then
-		deathSound = deathSound:gsub("male", "female")
-	end
-
-	client:EmitSound(deathSound)
 end
 
 local painSounds = {
@@ -419,10 +460,12 @@ function GM:PlayerHurt(client, attacker, health, damage)
 end
 
 function GM:PlayerDeathThink(client)
-	local deathTime = client:getNetVar("deathTime")
+	if (client:getChar()) then
+		local deathTime = client:getNetVar("deathTime")
 
-	if (deathTime and deathTime <= CurTime()) then
-		client:Spawn()
+		if (deathTime and deathTime <= CurTime()) then
+			client:Spawn()
+		end
 	end
 
 	return false
@@ -479,6 +522,8 @@ function GM:ShutDown()
 	hook.Run("SaveData")
 
 	for k, v in ipairs(player.GetAll()) do
+		v:saveNutData()
+
 		if (v:getChar()) then
 			v:getChar():save()
 		end
@@ -517,7 +562,94 @@ function GM:PlayerDeathSound()
 	return true
 end
 
-function GM:Think()
+function GM:CanItemBeTransfered(itemObject, curInv, inventory)
+	if (itemObject.isBag) then
+		local inventory = nut.item.inventories[itemObject:getData("id")]
+
+		if (inventory) then
+			for k, v in pairs(inventory:getItems()) do
+				if (v:getData("equip") == true) then
+					local owner = itemObject:getOwner()
+					if (owner and IsValid(owner)) then
+						owner:notifyLocalized("equippedBag")
+					end
+
+					return false
+				end
+			end
+		end
+	end
+end
+
+function GM:InitializedSchema()
+	if (!nut.data.get("date", nil, false, true)) then
+		nut.data.set("date", os.time(), false, true)
+	end
+
+	nut.date.start = nut.data.get("date", os.time(), false, true)
+
+	game.ConsoleCommand("sbox_persist ns_"..SCHEMA.folder.."\n")
+end
+
+function GM:PlayerCanHearPlayersVoice(listener, speaker)
+	local allowVoice = nut.config.get("allowVoice")
+	
+	return allowVoice, allowVoice
+end
+
+function GM:OnPhysgunFreeze(weapon, physObj, entity, client)
+	-- Object is already frozen (!?)
+	if (!physObj:IsMoveable()) then return false end
+	if (entity:GetUnFreezable()) then return false end
+	
+	physObj:EnableMotion(false)
+	
+	-- With the jeep we need to pause all of its physics objects
+	-- to stop it spazzing out and killing the server.
+	if (entity:GetClass() == "prop_vehicle_jeep") then
+		local objects = ent:GetPhysicsObjectCount()
+		
+		for i = 0, objects - 1 do
+			entity:GetPhysicsObjectNum(i):EnableMotion(false)
+		end
+	end
+
+	-- Add it to the player's frozen props
+	client:AddFrozenPhysicsObject(entity, physObj)
+	client:SendHint("PhysgunUnfreeze", 0.3)
+	client:SuppressHint("PhysgunFreeze")
+
+	return true
+end
+
+function GM:CanPlayerSuicide(client)
+	return false
+end
+
+function GM:AllowPlayerPickup(client, entity)
+	return false
+end
+
+function GM:PreCleanupMap()
+	hook.Run("SaveData")
+	hook.Run("PersistenceSave")
+end
+
+function GM:PostCleanupMap()
+	hook.Run("LoadData")
+end
+
+function GM:CharacterPreSave(character)
+	local client = character:getPlayer()
+
+	for k, v in pairs(character:getInv():getItems()) do
+		if (v.onSave) then
+			v:call("onSave", client)
+		end
+	end
+end
+
+timer.Create("nutLifeGuard", 1, 0, function()
 	for k, v in ipairs(player.GetAll()) do
 		if (v:getChar() and v:Alive() and hook.Run("ShouldPlayerDrowned", v) != false) then
 			if (v:WaterLevel() >= 3) then
@@ -550,26 +682,7 @@ function GM:Think()
 			end
 		end
 	end
-end
-
-function GM:CanItemBeTransfered(itemObject, curInv, inventory)
-	if (itemObject.isBag) then
-		local inventory = nut.item.inventories[itemObject:getData("id")]
-
-		if (inventory) then
-			for k, v in pairs(inventory:getItems()) do
-				if (v:getData("equip") == true) then
-					local owner = itemObject:getOwner()
-					if (owner and IsValid(owner)) then
-						owner:notify(L("equippedBag", owner))
-					end
-
-					return false
-				end
-			end
-		end
-	end
-end
+end)
 
 netstream.Hook("strReq", function(client, time, text)
 	if (client.nutStrReqs and client.nutStrReqs[time]) then

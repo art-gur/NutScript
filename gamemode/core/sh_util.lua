@@ -1,18 +1,3 @@
---[[
-	NutScript is free software: you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation, either version 3 of the License, or
-	(at your option) any later version.
-
-	NutScript is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
-
-	You should have received a copy of the GNU General Public License
-	along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 -- Includes a file from the prefix.
 function nut.util.include(fileName, state)
 	if (!fileName) then
@@ -59,6 +44,22 @@ function nut.util.includeDir(directory, fromLua)
 	end
 end
 
+-- Returns the address:port of the server.
+function nut.util.getAddress()
+	local address = tonumber(GetConVarString("hostip"))
+		
+	if (!address) then
+		return "127.0.0.1"..":"..GetConVarString("hostport")
+	end
+	
+	local ip = {}
+		ip[1] = bit.rshift(bit.band(address, 0xFF000000), 24)
+		ip[2] = bit.rshift(bit.band(address, 0x00FF0000), 16)
+		ip[3] = bit.rshift(bit.band(address, 0x0000FF00), 8)
+		ip[4] = bit.band(address, 0x000000FF)
+	return table.concat(ip, ".")..":"..GetConVarString("hostport")
+end
+
 -- Returns a table of admin players
 function nut.util.getAdmins(isSuper)
 	local admins = {}
@@ -88,7 +89,11 @@ function nut.util.getMaterial(materialPath)
 end
 
 -- Finds a player by matching their names.
-function nut.util.findPlayer(name)
+function nut.util.findPlayer(name, allowPatterns)
+	if (!allowPatterns) then
+		name = string.PatternSafe(name)
+	end
+	
 	for k, v in ipairs(player.GetAll()) do
 		if (nut.util.stringMatches(v:Name(), name)) then
 			return v
@@ -289,6 +294,20 @@ if (CLIENT) then
 		
 		return lines, maxW
 	end
+
+	local LAST_WIDTH = ScrW()
+	local LAST_HEIGHT = ScrH()
+
+	timer.Create("nutResolutionMonitor", 1, 0, function()
+		local scrW, scrH = ScrW(), ScrH()
+
+		if (scrW != LAST_WIDTH or scrH != LAST_HEIGHT) then
+			hook.Run("ScreenResolutionChanged", LAST_WIDTH, LAST_HEIGHT)
+			
+			LAST_WIDTH = scrW
+			LAST_HEIGHT = scrH
+		end
+	end)
 end
 
 -- Utility entity extensions.
@@ -298,6 +317,22 @@ do
 	-- Checks if an entity is a door by comparing its class.
 	function entityMeta:isDoor()
 		return self:GetClass():find("door")
+	end
+
+	-- Make a cache of chairs on start.
+	local CHAIR_CACHE = {}
+
+	-- Add chair models to the cache by checking if its vehicle category is a class.
+	for k, v in pairs(list.Get("Vehicles")) do
+		if (v.Category == "Chairs") then
+			CHAIR_CACHE[v.Model] = true
+		end
+	end
+
+	-- Whether or not a vehicle is a chair by checking its model with the chair list.
+	function entityMeta:isChair()
+		-- Micro-optimization in-case this gets used a lot.
+		return CHAIR_CACHE[self.GetModel(self)]
 	end
 
 	if (SERVER) then
@@ -378,7 +413,7 @@ do
 		dummy:Spawn()
 		dummy:SetColor(color)
 		dummy:SetMaterial(self:GetMaterial())
-		dummy:SetSkin(self:GetSkin())
+		dummy:SetSkin(self:GetSkin() or 0)
 		dummy:SetRenderMode(RENDERMODE_TRANSALPHA)
 		dummy:CallOnRemove("restoreDoor", function()
 			if (IsValid(self)) then
@@ -387,6 +422,17 @@ do
 				self:DrawShadow(true)
 				self.ignoreUse = false
 				self.nutIsMuted = false
+
+				for k, v in ipairs(ents.GetAll()) do
+					if (v:GetParent() == self) then
+						v:SetNotSolid(false)
+						v:SetNoDraw(false)
+
+						if (v.onDoorRestored) then
+							v:onDoorRestored(self)
+						end
+					end
+				end
 			end
 		end)
 		dummy:SetOwner(self)
@@ -404,6 +450,17 @@ do
 
 		for k, v in ipairs(self:GetBodyGroups()) do
 			dummy:SetBodygroup(v.id, self:GetBodygroup(v.id))
+		end
+
+		for k, v in ipairs(ents.GetAll()) do
+			if (v:GetParent() == self) then
+				v:SetNotSolid(true)
+				v:SetNoDraw(true)
+
+				if (v.onDoorBlasted) then
+					v:onDoorBlasted(self)
+				end
+			end
 		end
 
 		dummy:GetPhysicsObject():SetVelocity(velocity)
@@ -451,14 +508,33 @@ do
 	ALWAYS_RAISED["gmod_tool"] = true
 	ALWAYS_RAISED["nut_poshelper"] = true
 
+	-- Returns how many seconds the player has played on the server in total.
+	if (SERVER) then
+		function playerMeta:getPlayTime()
+			return self.nutPlayTime + (RealTime() - (self.nutJoinTime or RealTime()))
+		end
+	else
+		nut.playTime = nut.playTime or 0
+
+		function playerMeta:getPlayTime()
+			return nut.playTime + (RealTime() - nut.joinTime)
+		end
+	end
+
 	-- Returns whether or not the player has their weapon raised.
 	function playerMeta:isWepRaised()
-		local weapon = self:GetActiveWeapon()
-
+		local weapon = self.GetActiveWeapon(self)
+		local override = hook.Run("ShouldWeaponBeRaised", self, weapon)
+		
+		-- Allow the hook to check first.
+		if (override != nil) then
+			return override
+		end
+		
 		-- Some weapons may have their own properties.
 		if (IsValid(weapon)) then
 			-- If their weapon is always raised, return true.
-			if (weapon.IsAlwaysRaised or ALWAYS_RAISED[weapon:GetClass()]) then
+			if (weapon.IsAlwaysRaised or ALWAYS_RAISED[weapon.GetClass(weapon)]) then
 				return true
 			-- Return false if always lowered.
 			elseif (weapon.IsAlwaysLowered or weapon.NeverRaised) then
@@ -466,20 +542,32 @@ do
 			end
 		end
 
+		-- If the player has been forced to have their weapon lowered.
+		if (self.getNetVar(self, "restricted")) then
+			return false
+		end
+
+		-- Let the config decide before actual results.
+		if (nut.config.get("wepAlwaysRaised")) then
+			return true
+		end
+
 		-- Returns what the gamemode decides.
-		return self:getNetVar("raised", false)
+		return self.getNetVar(self, "raised", false)
 	end
 
+	local vectorLength2D = FindMetaTable("Vector").Length2D
+	
 	-- Checks if the player is running by seeing if the speed is faster than walking.
 	function playerMeta:isRunning()
-		return self:GetVelocity():Length2D() > (self:GetWalkSpeed() + 10)
+		return vectorLength2D(self.GetVelocity(self)) > (self.GetWalkSpeed(self) + 10)
 	end
 
 	-- Checks if the player has a female model.
 	function playerMeta:isFemale()
 		local model = self:GetModel():lower()
 
-		return model:find("female") or model:find("alyx") or model:find("mossman")
+		return model:find("female") or model:find("alyx") or model:find("mossman") or nut.anim.getModelClass(model) == "citizen_female"
 	end
 
 	-- Returns a good position in front of the player for an entity.
@@ -496,6 +584,36 @@ do
 		local trace = util.TraceLine(data)
 
 		return trace.HitPos + trace.HitNormal*36
+	end
+
+	-- Do an action that requires the player to stare at something.
+	function playerMeta:doStaredAction(entity, callback, time, onCancel, distance)
+		local uniqueID = "nutStare"..self:UniqueID()
+		local data = {}
+		data.filter = self
+
+		timer.Create(uniqueID, 0.1, time / 0.1, function()
+			if (IsValid(self) and IsValid(entity)) then
+				data.start = self:GetShootPos()
+				data.endpos = data.start + self:GetAimVector()*(distance or 96)
+
+				if (util.TraceLine(data).Entity != entity) then
+					timer.Remove(uniqueID)
+
+					if (onCancel) then
+						onCancel()
+					end
+				elseif (callback and timer.RepsLeft(uniqueID) == 0) then
+					callback()
+				end
+			else
+				timer.Remove(uniqueID)
+
+				if (onCancel) then
+					onCancel()
+				end
+			end
+		end)
 	end
 
 	if (SERVER) then
@@ -574,6 +692,42 @@ do
 
 			netstream.Start(self, "strReq", time, title, subTitle, default)
 		end
+
+		-- Removes a player's weapon and restricts interactivity.
+		function playerMeta:setRestricted(state, noMessage)
+			if (state) then
+				self:setNetVar("restricted", true)
+				
+				if (noMessage) then
+					self:setLocalVar("restrictNoMsg", true)
+				end
+
+				self.nutRestrictWeps = self.nutRestrictWeps or {}
+
+				for k, v in ipairs(self:GetWeapons()) do
+					self.nutRestrictWeps[#self.nutRestrictWeps + 1] = v:GetClass()
+					v:Remove()
+				end
+
+				hook.Run("OnPlayerRestricted", self)
+			else
+				self:setNetVar("restricted")
+
+				if (self:getLocalVar("restrictNoMsg")) then
+					self:setLocalVar("restrictNoMsg")
+				end
+
+				if (self.nutRestrictWeps) then
+					for k, v in ipairs(self.nutRestrictWeps) do
+						self:Give(v)
+					end
+
+					self.nutRestrictWeps = nil
+				end
+
+				hook.Run("OnPlayerUnRestricted", self)
+			end
+		end
 	end
 
 	-- Player ragdoll utility stuff.
@@ -643,6 +797,7 @@ do
 				entity:SetModel(self:GetModel())
 				entity:SetSkin(self:GetSkin())
 				entity:Spawn()
+				entity:setNetVar("player", self)
 				entity:SetCollisionGroup(COLLISION_GROUP_WEAPON)
 				entity:Activate()
 				entity:CallOnRemove("fixer", function()
@@ -773,5 +928,50 @@ do
 				hook.Run("OnCharFallover", self, entity, false)
 			end
 		end
+	end
+end
+
+-- Time related stuff.
+do
+	-- Gets the current time in the UTC time-zone.
+	function nut.util.getUTCTime()
+		local date = os.date("!*t")
+		local localDate = os.date("*t")
+		localDate.isdst = false
+
+		return os.difftime(os.time(date), os.time(localDate))
+	end
+
+	-- Setup for time strings.
+	local TIME_UNITS = {}
+	TIME_UNITS["s"] = 1						-- Seconds
+	TIME_UNITS["m"] = 60					-- Minutes
+	TIME_UNITS["h"] = 3600					-- Hours
+	TIME_UNITS["d"] = TIME_UNITS["h"] * 24	-- Days
+	TIME_UNITS["w"] = TIME_UNITS["d"] * 7	-- Weeks
+	TIME_UNITS["mo"] = TIME_UNITS["d"] * 30	-- Months
+	TIME_UNITS["y"] = TIME_UNITS["d"] * 365	-- Years
+
+	-- Gets the amount of seconds from a given formatted string.
+	-- Example: 5y2d7w = 5 years, 2 days, and 7 weeks.
+	-- If just given a minute, it is assumed minutes.
+	function nut.util.getStringTime(text)
+		local minutes = tonumber(text)
+
+		if (minutes) then
+			return math.abs(minutes * 60)
+		end
+
+		local time = 0
+
+		for amount, unit in text:lower():gmatch("(%d+)(%a+)") do
+			amount = tonumber(amount)
+			
+			if (amount and TIME_UNITS[unit]) then
+				time = time + math.abs(amount * TIME_UNITS[unit])
+			end
+		end
+
+		return time
 	end
 end

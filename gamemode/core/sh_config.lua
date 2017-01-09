@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 nut.config = nut.config or {}
 nut.config.stored = nut.config.stored or {}
 
@@ -124,7 +109,7 @@ if (SERVER) then
 	end
 
 	netstream.Hook("cfgSet", function(client, key, value)
-		if (client:IsSuperAdmin() and type(nut.config.get(key)) == type(value)) then
+		if (client:IsSuperAdmin() and type(nut.config.stored[key].default) == type(value)) then
 			nut.config.set(key, value)
 
 			if (type(value) == "table") then
@@ -213,15 +198,17 @@ if (CLIENT) then
 					for k, v in SortedPairs(configs) do
 						-- Determine which type of panel to create.
 						local form = v.data and v.data.form
-						local value = nut.config.get(k)
+						local value = nut.config.stored[k].default
 
 						if (!form) then
 							local formType = type(value)
 
 							if (formType == "number") then
 								form = "Int"
+								value = tonumber(nut.config.get(k)) or value
 							elseif (formType == "boolean") then
 								form = "Boolean"
+								value = util.tobool(nut.config.get(k))
 							else
 								form = "Generic"
 							end
@@ -234,13 +221,19 @@ if (CLIENT) then
 							form = "VectorColor"
 						end
 
+						local delay = 1
+
+						if (form == "Boolean") then
+							delay = 0
+						end
+
 						-- Add a new row for the config to the properties.
 						local row = properties:CreateRow(category, k)
 						row:Setup(form, v.data and v.data.data or {})
 						row:SetValue(value)
 						row:SetToolTip(v.desc)
 						row.DataChanged = function(this, value)
-							timer.Create("nutCfgSend"..k, 1, 1, function()
+							timer.Create("nutCfgSend"..k, delay, 1, function()
 								if (IsValid(row)) then
 									if (form == "VectorColor") then
 										local vector = Vector(value)
@@ -256,9 +249,7 @@ if (CLIENT) then
 										value = util.tobool(value)
 									end
 
-									if (type(nut.config.get(k)) == type(value)) then
-										netstream.Start("cfgSet", k, value)
-									end
+									netstream.Start("cfgSet", k, value)
 								end
 							end)
 						end

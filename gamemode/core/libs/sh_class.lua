@@ -1,22 +1,7 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 nut.class = nut.class or {}
 nut.class.list = {}
 
-local charMeta = FindMetaTable("Character")
+local charMeta = nut.meta.character
 
 -- Register classes from a directory.
 function nut.class.loadFromDir(directory)
@@ -95,7 +80,7 @@ function nut.class.canBe(client, class)
 	end
 
 	if (info.limit > 0) then
-		if (#nut.class.getPlayers(data.index) >= info.limit) then
+		if (#nut.class.getPlayers(info.index) >= info.limit) then
 			return false, "class is full"
 		end
 	end

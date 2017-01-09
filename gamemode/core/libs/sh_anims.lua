@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 nut.anim = nut.anim or {}
 nut.anim.citizen_male = {
 	normal = {
@@ -66,10 +51,13 @@ nut.anim.citizen_male = {
 	},
 	glide = ACT_GLIDE,
 	vehicle = {
-		["prop_vehicle_prisoner_pod"] = {"sitchair1", Vector(0, 0, -25), Angle()},
-		["prop_vehicle_jeep"] = {"sitchair1", Vector(12, 0, -18), Angle()}
+		["prop_vehicle_prisoner_pod"] = {"podpose", Vector(-3, 0, 0)},
+		["prop_vehicle_jeep"] = {"sitchair1", Vector(14, 0, -14)},
+		["prop_vehicle_airboat"] = {"sitchair1", Vector(8, 0, -20)},
+		chair = {"sitchair1", Vector(1, 0, -23)}
 	},
 }
+
 nut.anim.citizen_female = {
 	normal = {
 		[ACT_MP_STAND_IDLE] = {ACT_IDLE, ACT_IDLE_MANNEDGUN},
@@ -121,10 +109,7 @@ nut.anim.citizen_female = {
 		attack = ACT_MELEE_ATTACK_SWING
 	},
 	glide = ACT_GLIDE,
-	vehicle = {
-		["prop_vehicle_prisoner_pod"] = {"sitchair1", Vector(0, 0, -25), Angle()},
-		["prop_vehicle_jeep"] = {"sitchair1", Vector(12, 0, -18), Angle()}
-	},
+	vehicle = nut.anim.citizen_male.vehicle
 }
 nut.anim.metrocop = {
 	normal = {
@@ -173,50 +158,56 @@ nut.anim.metrocop = {
 		[ACT_MP_RUN] = {ACT_RUN, ACT_RUN},
 		attack = ACT_MELEE_ATTACK_SWING_GESTURE
 	},
-	glide = ACT_GLIDE
+	glide = ACT_GLIDE,
+	vehicle = {
+		chair = {ACT_COVER_PISTOL_LOW, Vector(5, 0, -5)},
+		["prop_vehicle_airboat"] = {ACT_COVER_PISTOL_LOW, Vector(10, 0, 0)},
+		["prop_vehicle_jeep"] = {ACT_COVER_PISTOL_LOW, Vector(18, -2, 4)},
+		["prop_vehicle_prisoner_pod"] = {ACT_IDLE, Vector(-4, -0.5, 0)}
+	}
 }
 nut.anim.overwatch = {
 	normal = {
-		[ACT_MP_STAND_IDLE] = {"idle_unarmed", "man_gun"},
-		[ACT_MP_CROUCH_IDLE] = {"crouchidle", "crouchidle"},
+		[ACT_MP_STAND_IDLE] = {"idle_unarmed", ACT_IDLE_ANGRY},
+		[ACT_MP_CROUCH_IDLE] = {ACT_CROUCHIDLE, ACT_CROUCHIDLE},
 		[ACT_MP_WALK] = {"walkunarmed_all", ACT_WALK_RIFLE},
-		[ACT_MP_CROUCHWALK] = {"crouch_walkall", "crouch_walkall"},
-		[ACT_MP_RUN] = {"runall", ACT_RUN_AIM_RIFLE}
+		[ACT_MP_CROUCHWALK] = {ACT_WALK_CROUCH_RIFLE, ACT_WALK_CROUCH_RIFLE},
+		[ACT_MP_RUN] = {ACT_RUN_AIM_RIFLE, ACT_RUN_AIM_RIFLE}
 	},
 	pistol = {
 		[ACT_MP_STAND_IDLE] = {"idle_unarmed", ACT_IDLE_ANGRY_SMG1},
-		[ACT_MP_CROUCH_IDLE] = {"crouchidle", "crouchidle"},
+		[ACT_MP_CROUCH_IDLE] = {ACT_CROUCHIDLE, ACT_CROUCHIDLE},
 		[ACT_MP_WALK] = {"walkunarmed_all", ACT_WALK_RIFLE},
-		[ACT_MP_CROUCHWALK] = {"crouch_walkall", "crouch_walkall"},
-		[ACT_MP_RUN] = {"runall", ACT_RUN_AIM_RIFLE}
+		[ACT_MP_CROUCHWALK] = {ACT_WALK_CROUCH_RIFLE, ACT_WALK_CROUCH_RIFLE},
+		[ACT_MP_RUN] = {ACT_RUN_AIM_RIFLE, ACT_RUN_AIM_RIFLE}
 	},
 	smg = {
 		[ACT_MP_STAND_IDLE] = {ACT_IDLE_SMG1, ACT_IDLE_ANGRY_SMG1},
-		[ACT_MP_CROUCH_IDLE] = {"crouchidle", "crouchidle"},
+		[ACT_MP_CROUCH_IDLE] = {ACT_CROUCHIDLE, ACT_CROUCHIDLE},
 		[ACT_MP_WALK] = {ACT_WALK_RIFLE, ACT_WALK_AIM_RIFLE},
-		[ACT_MP_CROUCHWALK] = {"crouch_walkall", "crouch_walkall"},
+		[ACT_MP_CROUCHWALK] = {ACT_WALK_CROUCH_RIFLE, ACT_WALK_CROUCH_RIFLE},
 		[ACT_MP_RUN] = {ACT_RUN_RIFLE, ACT_RUN_AIM_RIFLE}
 	},
 	shotgun = {
 		[ACT_MP_STAND_IDLE] = {ACT_IDLE_SMG1, ACT_IDLE_ANGRY_SHOTGUN},
-		[ACT_MP_CROUCH_IDLE] = {"crouchidle", "crouchidle"},
+		[ACT_MP_CROUCH_IDLE] = {ACT_CROUCHIDLE, ACT_CROUCHIDLE},
 		[ACT_MP_WALK] = {ACT_WALK_RIFLE, ACT_WALK_AIM_SHOTGUN},
-		[ACT_MP_CROUCHWALK] = {"crouch_walkall", "crouch_walkall"},
+		[ACT_MP_CROUCHWALK] = {ACT_WALK_CROUCH_RIFLE, ACT_WALK_CROUCH_RIFLE},
 		[ACT_MP_RUN] = {ACT_RUN_RIFLE, ACT_RUN_AIM_SHOTGUN}
 	},
 	grenade = {
-		[ACT_MP_STAND_IDLE] = {"idle_unarmed", "man_gun"},
-		[ACT_MP_CROUCH_IDLE] = {"crouchidle", "crouchidle"},
+		[ACT_MP_STAND_IDLE] = {"idle_unarmed", ACT_IDLE_ANGRY},
+		[ACT_MP_CROUCH_IDLE] = {ACT_CROUCHIDLE, ACT_CROUCHIDLE},
 		[ACT_MP_WALK] = {"walkunarmed_all", ACT_WALK_RIFLE},
-		[ACT_MP_CROUCHWALK] = {"crouch_walkall", "crouch_walkall"},
-		[ACT_MP_RUN] = {"runall", ACT_RUN_AIM_RIFLE}
+		[ACT_MP_CROUCHWALK] = {ACT_WALK_CROUCH_RIFLE, ACT_WALK_CROUCH_RIFLE},
+		[ACT_MP_RUN] = {ACT_RUN_AIM_RIFLE, ACT_RUN_AIM_RIFLE}
 	},
 	melee = {
-		[ACT_MP_STAND_IDLE] = {"idle_unarmed", "man_gun"},
-		[ACT_MP_CROUCH_IDLE] = {"crouchidle", "crouchidle"},
+		[ACT_MP_STAND_IDLE] = {"idle_unarmed", ACT_IDLE_ANGRY},
+		[ACT_MP_CROUCH_IDLE] = {ACT_CROUCHIDLE, ACT_CROUCHIDLE},
 		[ACT_MP_WALK] = {"walkunarmed_all", ACT_WALK_RIFLE},
-		[ACT_MP_CROUCHWALK] = {"crouch_walkall", "crouch_walkall"},
-		[ACT_MP_RUN] = {"runall", ACT_RUN_AIM_RIFLE},
+		[ACT_MP_CROUCHWALK] = {ACT_WALK_CROUCH_RIFLE, ACT_WALK_CROUCH_RIFLE},
+		[ACT_MP_RUN] = {ACT_RUN_AIM_RIFLE, ACT_RUN_AIM_RIFLE},
 		attack = ACT_MELEE_ATTACK_SWING_GESTURE
 	},
 	glide = ACT_GLIDE
@@ -299,19 +290,28 @@ nut.anim.fastZombie = {
 local translations = {}
 
 function nut.anim.setModelClass(model, class)
+	if (!nut.anim[class]) then
+		error("'"..tostring(class).."' is not a valid animation class!")
+	end
+	
 	translations[model:lower()] = class
 end
 
-function nut.anim.getModelClass(model)
-	model = model:lower()
+-- Micro-optimization since the get class function gets called a lot.
+local stringLower = string.lower
+local stringFind = string.find
 
-	if (model:find("/player")) then
+function nut.anim.getModelClass(model)
+	model = stringLower(model)
+	local class = translations[model]
+
+	if (!class and stringFind(model, "/player")) then
 		return "player"
 	end
 
-	local class = translations[model:lower()] or "citizen_male"
+	class = class or "citizen_male"
 
-	if (class == "citizen_male" and (model:find("female" or model:find("alyx") or model:find("mossman")))) then
+	if (class == "citizen_male" and (stringFind(model, "female") or stringFind(model, "alyx") or stringFind(model, "mossman"))) then
 		class = "citizen_female"
 	end
 	

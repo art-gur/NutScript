@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 if (CLIENT) then
 	local HELP_DEFAULT
 
@@ -61,7 +46,15 @@ if (CLIENT) then
 			tree:SetWide(180)
 			tree:DockMargin(0, 0, 15, 0)
 			tree.OnNodeSelected = function(this, node)
-				html:SetHTML(header..node:onGetHTML().."</body></html>")
+				if (node.onGetHTML) then
+					local source = node:onGetHTML()
+
+					if (source:sub(1, 4) == "http") then
+						html:OpenURL(source)
+					else
+						html:SetHTML(header..node:onGetHTML().."</body></html>")
+					end
+				end
 			end
 
 			html = panel:Add("DHTML")
@@ -72,6 +65,12 @@ if (CLIENT) then
 			hook.Run("BuildHelpMenu", tabs)
 
 			for k, v in SortedPairs(tabs) do
+				if (type(v) != "function") then
+					local source = v
+
+					v = function() return tostring(source) end
+				end
+
 				tree:AddNode(L(k)).onGetHTML = v or function() return "" end
 			end
 		end
@@ -123,7 +122,7 @@ hook.Add("BuildHelpMenu", "nutBasicHelp", function(tabs)
 					<span style="font-size: smaller;">
 					<b>%s</b>: %s<br />
 					<b>%s</b>: %s
-			]]):format(v.name or "Unknown", L"desc", v.desc, L"author", v.author)
+			]]):format(v.name or "Unknown", L"desc", v.desc or L"noDesc", L"author", v.author)
 
 			if (v.version) then
 				body = body.."<br /><b>"..L"version".."</b>: "..v.version
@@ -133,5 +132,29 @@ hook.Add("BuildHelpMenu", "nutBasicHelp", function(tabs)
 		end
 
 		return body
+	end
+
+	tabs["flags"] = function(node)
+		local body = [[<table border="0" cellspacing="8px">]]
+
+		for k, v in SortedPairs(nut.flag.list) do
+			local icon
+
+			if (LocalPlayer():getChar():hasFlags(k)) then
+				icon = [[<img src="asset://garrysmod/materials/icon16/tick.png" />]]
+			else
+				icon = [[<img src="asset://garrysmod/materials/icon16/cross.png" />]]
+			end
+
+			body = body..Format([[
+				<tr>
+					<td>%s</td>
+					<td><b>%s</b></td>
+					<td>%s</td>
+				</tr>
+			]], icon, k, v.desc)
+		end
+
+		return body.."</table>"
 	end
 end)

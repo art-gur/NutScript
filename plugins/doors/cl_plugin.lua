@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 ACCESS_LABELS = {}
 ACCESS_LABELS[DOOR_OWNER] = "owner"
 ACCESS_LABELS[DOOR_TENANT] = "tenant"
@@ -32,7 +17,7 @@ local configGet = nut.config.get
 local teamGetColor = team.GetColor
 
 function PLUGIN:DrawEntityInfo(entity, alpha)
-	if (entity.isDoor(entity)) then
+	if (entity.isDoor(entity) and !entity:getNetVar("hidden")) then
 		local position = toScreen(entity.LocalToWorld(entity, entity.OBBCenter(entity)))
 		local x, y = position.x, position.y
 		local owner = entity.getNetVar(entity, "owner")
@@ -62,14 +47,14 @@ function PLUGIN:DrawEntityInfo(entity, alpha)
 	end
 end
 
-netstream.Hook("doorMenu", function(entity, access)
+netstream.Hook("doorMenu", function(entity, access, door2)
 	if (IsValid(nut.gui.door)) then
 		return nut.gui.door:Remove()
 	end
 
 	if (IsValid(entity)) then
 		nut.gui.door = vgui.Create("nutDoorMenu")
-		nut.gui.door:setDoor(entity, access)
+		nut.gui.door:setDoor(entity, access, door2)
 	end
 end)
 

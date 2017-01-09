@@ -1,17 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
 NAME = "한국어"
 
 LANGUAGE = {
@@ -79,6 +65,8 @@ LANGUAGE = {
 	dNotAllowedToOwn = "이 문을 소유하도록 허가되지 않았습니다.",
 	dSetDisabled = "당신은 이 문의 기능을 껐습니다.",
 	dSetNotDisabled = "당신은 이 문의 기능을 다시 켰습니다.",
+	dSetHidden = "당신은 이 문을 숨겼습니다.",
+	dSetNotHidden = "당신은 이 문을 숨김 해제했습니다.",
 	dSetParentDoor = "당신은 이 문을 상위 개체로 설정하였습니다.",
 	dCanNotSetAsChild = "당신은 이 문을 하위 개체로 설정할 수 없습니다.",
 	dAddChildDoor = "당신은 이 문을 하위 개체로 설정하였습니다.",
@@ -97,7 +85,11 @@ LANGUAGE = {
 	invalidArg = "#%s 번째 명령 변수에 올바른 값을 입력해야 합니다.",
 	invalidFaction = "제시된 이름으로 된 단체를 찾을 수 없습니다.",
 	flagGive = "%s 님이  %s 님에게 '%s' 권한을 주었습니다.",
+	flagGiveTitle = "권한 주기",
+	flagGiveDesc = "이 권한들을 플레이어에게 줍니다.",
 	flagTake = "%s 님이 '%s' 권한을 %s 님으로 부터 받았습니다.",
+	flagTakeTitle = "플래그 가지기.",
+	flagTakeDesc = "이 권한들을 플레이어에게서 뺏습니다.",
 	flagNoMatch = "이 행동은 \"%s\" 권한을 필요로 합니다.",
 	textAdded = "텍스트를 추가하였습니다.",
 	textRemoved = "%s개의 택스트를 삭제하였습니다.",
@@ -106,9 +98,13 @@ LANGUAGE = {
 	businessSell = "당신은 %s 을/를 %s에 판매했습니다.",
 	cChangeModel = "%s님이 %s님의 외관을 교체했습니다: %s.",
 	cChangeName = "%s님이 %s님의 이름을 교체했습니다: %s.",
+	cChangeSkin = "%s 가 %s's 의 스킨을 %s 로 바꾸었습니다.",
+	cChangeGroups = "%s 가 %s 의 \"%s\" 바디그룹을 %s 로 바꾸었습니다.",
+	cChangeFaction = "%s 는 %s 를 %s 팩션으로 이동시켰습니다.",
 	playerCharBelonging = "이 물건은 당신의 다른 캐릭터의 물건입니다.",
 	business = "사업",
 	invalidFaction = "당신은 잘못된 단체를 참조했습니다.",
+	spawnAdd = "%s 개의 시작지점을 추가하였습니다.",
 	spawnDeleted = "%s개의 시작지점을 삭제하였습니다.",
 	someone = "누군가",
 	rgnLookingAt = "당신이 보고 있는 사람이 당신을 인식하도록 선언.",
@@ -201,10 +197,36 @@ LANGUAGE = {
 	vmRem = "개인 귓속말을 삭제했습니다.",
 	altLower = "주먹 미사용시 숨김",
     noPerm = "이 행위를 할 권한이 없습니다.",
-	youreDead = "You are Dead",
+	youreDead = "당신은 죽었습니다",
 	injMajor = "중상을 입음.",
 	injLittle = "부상을 입음.",
 	toggleESP = "어드민 월핵 사용",
+	chgName = "이름 변경",
+	chgNameDesc = "아래에 캐릭터의 새로운 이름을 입력하세요.",	
 	thirdpersonToggle = "3인칭 사용",
 	thirdpersonClassic = "클래식 3인칭 사용",
+	equippedBag = "장착된 아이템을 옮긴 가방.",	
+	useTip = "이 아이템을 사용합니다.",
+	equipTip = "이 아이템을 착용합니다.",
+	unequipTip = "이 아이템을 착용해제합니다.",
+	consumables = "소모품",
+	plyNotValid = "당신은 잘못된 플레이어를 보고있습니다.",
+	restricted = "당신은 저지되었습니다.",
+	viewProfile = "스팀 프로필 보기",
+	salary = "당신은 월급으로 부터 &s 만큼의 돈이 들어왔습니다.",
+	noRecog = "당신은 이 사람을 인식하지 않았습니다.",
+	curTime = "지금 시각은 %s.",
+	vendorEditor = "상인 수정",
+	edit = "수정",
+	disable = "해제",
+	vendorPriceReq = "이 물품의 새로운 가격을 적으십시오.",
+	vendorEditCurStock = "현재 재고 수정",
+	you = "당신",
+	vendorSellScale = "판매 가격 규모",
+	vendorNoTrade = "당신은 이 상인과 거래 할수없습니다.",
+	vendorNoMoney = "이 상인은 해당 물품을 사 들일수 없습니다.",
+	vendorNoStock = "이 상인은 해당 물품의 재고가 없습니다.",
+	contentTitle = "NutScript 콘텐츠 없음.",
+	contentWarning = "당신은 NutScript 콘텐츠가 적용되어있지 않습니다. 특정 기능이 누락될 수 있습니다.\nNutscipt 콘텐츠를 적용해야 합니다.",
+	flags = "플래그"
 }

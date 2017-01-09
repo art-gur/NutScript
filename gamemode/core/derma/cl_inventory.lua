@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 -- The queue for the rendered icons.
 renderdIcons = renderdIcons or {}
 
@@ -41,22 +26,18 @@ function PANEL:Init()
 end
 
 function PANEL:PaintOver(w, h)
-	local inventory = self.inv
+	local itemTable = nut.item.instances[self.itemID]
 
-	if (inventory) then
-		local itemTable = inventory:getItemAt(self.gridX, self.gridY)
+	if (self.waiting and self.waiting > CurTime()) then
+		local wait = (self.waiting - CurTime()) / self.waitingTime
+		surface.SetDrawColor(255, 255, 255, 100*wait)
+		surface.DrawRect(2, 2, w - 4, h - 4)
+	end
 
-		if (self.waiting and self.waiting > CurTime()) then
-			local wait = (self.waiting - CurTime()) / self.waitingTime
-			surface.SetDrawColor(255, 255, 255, 100*wait)
-			surface.DrawRect(2, 2, w - 4, h - 4)
-		end
+	if (itemTable and itemTable.paintOver) then
+		local w, h = self:GetSize()
 
-		if (itemTable and itemTable.paintOver) then
-			local w, h = self:GetSize()
-
-			itemTable.paintOver(self, itemTable, w, h)
-		end
+		itemTable.paintOver(self, itemTable, w, h)
 	end
 end
 
@@ -90,9 +71,23 @@ PANEL = {}
 
 		self.panels = {}
 	end
-	
+		
+	function PANEL:OnRemove()
+		if (self.childPanels) then
+			for k, v in ipairs(self.childPanels) do
+				if (v != self) then
+					v:Remove()
+				end
+			end
+		end
+	end
+
 	function PANEL:setInventory(inventory)
 		if (inventory.slots) then
+			if (IsValid(nut.gui.inv1) and nut.gui.inv1.childPanels and inventory != LocalPlayer():getChar():getInv()) then
+				table.insert(nut.gui.inv1.childPanels, self)
+			end
+
 			self.invID = inventory:getID()
 			self:SetSize(64, 64)
 			self:setGridSize(inventory:getSize())
@@ -107,7 +102,8 @@ PANEL = {}
 						local icon = self:addIcon(item.model or "models/props_junk/popcan01a.mdl", x, y, item.width, item.height)
 
 						if (IsValid(icon)) then
-							icon:SetToolTip("Item #"..item.id.."\n"..L("itemInfo", item.name, item:getDesc()))
+							icon:SetToolTip("Item #"..item.id.."\n"..L("itemInfo", L(item.name), L(item:getDesc())))
+							icon.itemID = item.id
 
 							self.panels[item.id] = icon
 						end
@@ -168,7 +164,7 @@ PANEL = {}
 		
 		if (IsValid(item)) then
 			local mouseX, mouseY = self:LocalCursorPos()
-			local dropX, dropY = math.Round((mouseX + item:GetWide()*0.5) / 64) - math.floor(item.gridW * 0.5), math.Round((mouseY + item:GetTall()*0.5) / 64) - math.floor(item.gridH * 0.5)
+			local dropX, dropY = math.ceil((mouseX - 4 - (item.gridW - 1) * 32) / 64), math.ceil((mouseY - 27 - (item.gridH - 1) * 32) / 64)
 
 			for x = 0, item.gridW - 1 do
 				for y = 0, item.gridH - 1 do
@@ -334,35 +330,37 @@ PANEL = {}
 			end
 			panel.doRightClick = function(this)
 				if (itemTable) then
-					itemTable.client = LocalPlayer()
+					itemTable.player = LocalPlayer()
 						local menu = DermaMenu()
 							for k, v in SortedPairs(itemTable.functions) do
 								if (v.onCanRun) then
 									if (v.onCanRun(itemTable) == false) then
-										itemTable.client = nil
+										itemTable.player = nil
 
 										continue
 									end
 								end
 
 								menu:AddOption(L(v.name or k), function()
-									local send = true
+									itemTable.player = LocalPlayer()
+										local send = true
 
-									if (v.onClick) then
-										send = v.onClick(itemTable)
-									end
+										if (v.onClick) then
+											send = v.onClick(itemTable)
+										end
 
-									if (v.sound) then
-										surface.PlaySound(v.sound)
-									end
+										if (v.sound) then
+											surface.PlaySound(v.sound)
+										end
 
-									if (send != false) then
-										netstream.Start("invAct", k, itemTable.id, self.invID)
-									end
+										if (send != false) then
+											netstream.Start("invAct", k, itemTable.id, self.invID)
+										end
+									itemTable.player = nil
 								end):SetImage(v.icon or "icon16/brick.png")
 							end
 						menu:Open()
-					itemTable.client = nil
+					itemTable.player = nil
 				end
 			end
 			
@@ -393,13 +391,16 @@ PANEL = {}
 vgui.Register("nutInventory", PANEL, "DFrame")
 
 hook.Add("CreateMenuButtons", "nutInventory", function(tabs)
-	tabs["inv"] = function(panel)		
-		nut.gui.inv1 = panel:Add("nutInventory")
+	if (hook.Run("CanPlayerViewInventory") != false) then
+		tabs["inv"] = function(panel)		
+			nut.gui.inv1 = panel:Add("nutInventory")
+			nut.gui.inv1.childPanels = {}
 
-		local inventory = LocalPlayer():getChar():getInv()
+			local inventory = LocalPlayer():getChar():getInv()
 
-		if (inventory) then
-			nut.gui.inv1:setInventory(inventory)
+			if (inventory) then
+				nut.gui.inv1:setInventory(inventory)
+			end
 		end
 	end
 end)

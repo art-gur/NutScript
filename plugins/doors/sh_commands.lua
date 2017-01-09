@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 local PLUGIN = PLUGIN
 
 nut.command.add("doorbuy", {
@@ -28,7 +13,7 @@ nut.command.add("doorbuy", {
 		-- Check if the entity is a valid door.
 		if (IsValid(entity) and entity:isDoor() and !entity:getNetVar("disabled")) then
 			if (entity:getNetVar("noSell") or IsValid(entity:getNetVar("owner")) or entity:getNetVar("faction")) then
-				return client:notify(L("dNotAllowedToOwn", client))
+				return client:notifyLocalized("dNotAllowedToOwn")
 			end
 
 			-- Get the price that the door is bought for.
@@ -48,14 +33,14 @@ nut.command.add("doorbuy", {
 
 				-- Take their money and notify them.
 				client:getChar():takeMoney(price)
-				client:notify(L("dPurchased", client, nut.currency.get(price)))
+				client:notifyLocalized("dPurchased", nut.currency.get(price))
 			else
 				-- Otherwise tell them they can not.
-				client:notify(L("canNotAfford", client))
+				client:notifyLocalized("canNotAfford")
 			end
 		else
 			-- Tell the player the door isn't valid.
-			client:notify(L("dNotValid", client))
+			client:notifyLocalized("dNotValid")
 		end
 	end
 })
@@ -80,16 +65,22 @@ nut.command.add("doorsell", {
 				-- Remove old door information.
 				entity:removeDoorAccessData()
 
+				-- Remove door information on child doors
+				PLUGIN:callOnDoorChildren(entity, function(child)
+					print(child)
+					child:removeDoorAccessData()
+				end)
+
 				-- Take their money and notify them.
 				client:getChar():giveMoney(price)
-				client:notify(L("dSold", client, nut.currency.get(price)))
+				client:notifyLocalized("dSold", nut.currency.get(price))
 			else
 				-- Otherwise tell them they can not.
-				client:notify(L("notOwner", client))
+				client:notifyLocalized("notOwner")
 			end
 		else
 			-- Tell the player the door isn't valid.
-			client:notify(L("dNotValid", client))
+			client:notifyLocalized("dNotValid")
 		end		
 	end
 })
@@ -121,13 +112,13 @@ nut.command.add("doorsetunownable", {
 			end)
 
 			-- Tell the player they have made the door unownable.
-			client:notify(L("dMadeUnownable", client))
+			client:notifyLocalized("dMadeUnownable")
 
 			-- Save the door information.
 			PLUGIN:SaveDoorData()
 		else
 			-- Tell the player the door isn't valid.
-			client:notify(L("dNotValid", client))
+			client:notifyLocalized("dNotValid")
 		end
 	end
 })
@@ -159,13 +150,13 @@ nut.command.add("doorsetownable", {
 			end)
 
 			-- Tell the player they have made the door ownable.
-			client:notify(L("dMadeOwnable", client))
+			client:notifyLocalized("dMadeOwnable")
 
 			-- Save the door information.
 			PLUGIN:SaveDoorData()
 		else
 			-- Tell the player the door isn't valid.
-			client:notify(L("dNotValid", client))
+			client:notifyLocalized("dNotValid")
 		end
 	end
 })
@@ -188,7 +179,7 @@ nut.command.add("doorsetfaction", {
 
 				-- Loop through each faction, checking the uniqueID and name.
 				for k, v in pairs(nut.faction.teams) do
-					if (nut.util.stringMatches(k, name) or nut.util.stringMatches(k, v.name)) then
+					if (nut.util.stringMatches(k, name) or nut.util.stringMatches(L(v.name, client), name)) then
 						-- This faction matches the provided string.
 						faction = v
 
@@ -208,10 +199,10 @@ nut.command.add("doorsetfaction", {
 					entity:setNetVar("faction", faction.index)
 				end)
 
-				client:notify(L("dSetFaction", client, L2(faction.name, client) or faction.name))
+				client:notifyLocalized("dSetFaction", L(faction.name, client))
 			-- The faction was not found.
 			elseif (arguments[1]) then
-				client:notify(L("invalidFaction", client))
+				client:notifyLocalized("invalidFaction")
 			-- The player didn't provide a faction.
 			else
 				entity:setNetVar("faction", nil)
@@ -220,8 +211,11 @@ nut.command.add("doorsetfaction", {
 					entity:setNetVar("faction", nil)
 				end)
 
-				client:notify(L("dRemoveFaction", client))
+				client:notifyLocalized("dRemoveFaction")
 			end
+
+			-- Save the door information.
+			PLUGIN:SaveDoorData()
 		end
 	end
 })
@@ -245,13 +239,13 @@ nut.command.add("doorsetdisabled", {
 			end)
 
 			-- Tell the player they have made the door (un)disabled.
-			client:notify(L("dSet"..(disabled and "" or "Not").."Disabled", client))
+			client:notifyLocalized("dSet"..(disabled and "" or "Not").."Disabled")
 
 			-- Save the door information.
 			PLUGIN:SaveDoorData()
 		else
 			-- Tell the player the door isn't valid.
-			client:notify(L("dNotValid", client))
+			client:notifyLocalized("dNotValid")
 		end
 	end
 })
@@ -274,7 +268,7 @@ nut.command.add("doorsettitle", {
 
 			-- Make sure the name contains actual characters.
 			if (!name:find("%S")) then
-				return client:notify(L("invalidArg", client, 1))
+				return client:notifyLocalized("invalidArg", 1)
 			end
 
 			--[[
@@ -290,13 +284,17 @@ nut.command.add("doorsettitle", {
 				entity:setNetVar("title", name)
 			elseif (client:IsAdmin()) then
 				entity:setNetVar("name", name)
+
+				PLUGIN:callOnDoorChildren(entity, function(child)
+					child:setNetVar("name", name)
+				end)
 			else
 				-- Otherwise notify the player he/she can't.
-				client:notify(L("notOwner", client))
+				client:notifyLocalized("notOwner")
 			end
 		else
 			-- Notification of the door not being valid.
-			client:notify(L("dNotValid", client))
+			client:notifyLocalized("dNotValid")
 		end
 	end
 })
@@ -310,10 +308,10 @@ nut.command.add("doorsetparent", {
 		-- Validate it is a door.
 		if (IsValid(entity) and entity:isDoor() and !entity:getNetVar("disabled")) then
 			client.nutDoorParent = entity
-			client:notify(L("dSetParentDoor", client))
+			client:notifyLocalized("dSetParentDoor")
 		else
 			-- Tell the player the door isn't valid.
-			client:notify(L("dNotValid", client))
+			client:notifyLocalized("dNotValid")
 		end		
 	end
 })
@@ -327,7 +325,7 @@ nut.command.add("doorsetchild", {
 		-- Validate it is a door.
 		if (IsValid(entity) and entity:isDoor() and !entity:getNetVar("disabled")) then
 			if (client.nutDoorParent == entity) then
-				return client:notify(L("dCanNotSetAsChild", client))
+				return client:notifyLocalized("dCanNotSetAsChild")
 			end
 
 			-- Check if the player has set a door as a parent.
@@ -339,18 +337,18 @@ nut.command.add("doorsetchild", {
 				-- Set the door's parent to the parent.
 				entity.nutParent = client.nutDoorParent
 
-				client:notify(L("dAddChildDoor", client))
+				client:notifyLocalized("dAddChildDoor")
 
 				-- Save the door information.
 				PLUGIN:SaveDoorData()
 				PLUGIN:copyParentDoor(entity)
 			else
 				-- Tell the player they do not have a door parent.
-				client:notify(L("dNoParentDoor", client))
+				client:notifyLocalized("dNoParentDoor")
 			end
 		else
 			-- Tell the player the door isn't valid.
-			client:notify(L("dNotValid", client))
+			client:notifyLocalized("dNotValid")
 		end		
 	end
 })
@@ -370,7 +368,7 @@ nut.command.add("doorremovechild", {
 
 				entity.nutChildren = nil
 
-				return client:notify(L("dRemoveChildren", client))
+				return client:notifyLocalized("dRemoveChildren")
 			end
 
 			-- Check if the player has set a door as a parent.
@@ -380,14 +378,43 @@ nut.command.add("doorremovechild", {
 				-- Remove the variable for the parent.
 				entity.nutParent = nil
 
-				client:notify(L("dRemoveChildDoor", client))
+				client:notifyLocalized("dRemoveChildDoor")
 
 				-- Save the door information.
 				PLUGIN:SaveDoorData()
 			end
 		else
 			-- Tell the player the door isn't valid.
-			client:notify(L("dNotValid", client))
+			client:notifyLocalized("dNotValid")
 		end		
+	end
+})
+
+nut.command.add("doorsethidden", {
+	adminOnly = true,
+	syntax = "<bool hidden>",
+	onRun = function(client, arguments)
+		-- Get the door the player is looking at.
+		local entity = client:GetEyeTrace().Entity
+
+		-- Validate it is a door.
+		if (IsValid(entity) and entity:isDoor()) then
+			local hidden = util.tobool(arguments[1] or true)
+
+			entity:setNetVar("hidden", hidden)
+			
+			PLUGIN:callOnDoorChildren(entity, function(child)
+				child:setNetVar("hidden", hidden)
+			end)
+
+			-- Tell the player they have made the door (un)hidden.
+			client:notifyLocalized("dSet"..(hidden and "" or "Not").."Hidden")
+
+			-- Save the door information.
+			PLUGIN:SaveDoorData()
+		else
+			-- Tell the player the door isn't valid.
+			client:notifyLocalized("dNotValid")
+		end
 	end
 })

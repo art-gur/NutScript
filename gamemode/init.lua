@@ -1,22 +1,10 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
+-- Include NutScript content.
+resource.AddWorkshop("207739713")
 
 -- Include features from the Sandbox gamemode.
 DeriveGamemode("sandbox")
 -- Define a global shared table to store NutScript information.
-nut = nut or {util = {}}
+nut = nut or {util = {}, meta = {}}
 
 -- Send the following files to players.
 AddCSLuaFile("cl_init.lua")
@@ -32,6 +20,7 @@ include("shared.lua")
 nut.db.connect(function()
 	-- Create the SQL tables if they do not exist.
 	nut.db.loadTables()
+	nut.log.loadTables()
 	
 	MsgC(Color(0, 255, 0), "NutScript has connected to the database.\n")
 end)
@@ -39,3 +28,10 @@ end)
 -- Resources that are required for players to download are here.
 resource.AddFile("materials/nutscript/gui/vignette.png")
 resource.AddFile("resource/fonts/fontello.ttf")
+
+concommand.Add("nut_setowner", function(client, command, arguments)
+    if (!IsValid(client)) then
+        MsgC(Color(255, 0, 0), "** 'nut_setowner' has been deprecated in NutScript 1.1\n")
+        MsgC(Color(255, 0, 0), "** Instead, please install an admin mod and use that instead.\n")
+    end
+end)

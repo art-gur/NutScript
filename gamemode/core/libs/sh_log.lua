@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 FLAG_NORMAL = 0
 FLAG_SUCCESS = 1
 FLAG_WARNING = 2
@@ -35,17 +20,76 @@ local consoleColor = Color(50, 200, 50)
 -- SUGG: Do I have to get Seperated Database? For ChatLog, For EventLog.
 
 if (SERVER) then
-	function nut.log.add(logString, flag, logLevel, noSave)
+	if (!nut.db) then
+		include("sv_database.lua")
+	end
+
+	local SQLITE_CREATE_LOG = [[
+		CREATE TABLE IF NOT EXISTS `nut_logs` (
+			`_id` INTEGER PRIMARY KEY,
+			`_date` INTEGER,
+			`_text` TEXT
+		);
+	]]
+
+	local MYSQL_CREATE_LOG = [[
+		CREATE TABLE IF NOT EXISTS `nut_logs` (
+			`_id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+			`_date` int(11) unsigned NOT NULL,
+			`_text` tinytext NOT NULL,
+			PRIMARY KEY (`_id`)
+		);
+	]]
+
+	function nut.log.loadTables()
+		file.CreateDir("nutscript/logs")
+
+		--[[
+		if (nut.db.object) then
+			nut.db.query(MYSQL_CREATE_LOG)
+		else
+			nut.db.query(SQLITE_CREATE_LOG)
+		end
+		--]]
+	end
+
+	function nut.log.resetTables()
+		nut.db.query("DROP TABLE IF EXISTS `nut_logs`")
+		nut.log.loadTables()
+	end
+
+	function nut.log.add(logString, flag, logLevel, noSave, extra)
+		local client
+
+		-- If the 1st argument is a player, shift every argument to correct names.
+		if (type(logString) == "Player") then
+			client = logString
+			logString = flag
+			logLevel = noSave
+			noSave = extra
+
+			-- Prefix the log with the player identification.
+			logString = (IsValid(client) and client:Name().." ("..client:SteamID()..") " or "Console")..logString
+		end
+
 		flag = flag or FLAG_NORMAL
 
 		if (flag != FLAG_SERVER) then
-				nut.log.send(nut.util.getAdmins(), logString, flag)
+			nut.log.send(nut.util.getAdmins(), logString, flag)
 		end
 
 		MsgC(consoleColor, "[LOG] ", nut.log.color[flag] or color_white, logString .. "\n")
 		
 		if (!noSave) then
-			-- insert mysql query
+			--[[
+			nut.db.insertTable({
+				_date = nut.util.getUTCTime(),
+				_text = logString
+			}, nil, "logs")
+			--]]
+
+			file.CreateDir("nutscript/logs")
+			file.Append("nutscript/logs/"..os.date("%x"):gsub("/", "-")..".txt", "["..os.date("%X").."]\t"..logString.."\r\n")
 		end
 	end
 

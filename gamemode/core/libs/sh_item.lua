@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 nut.item = nut.item or {}
 nut.item.list = nut.item.list or {}
 nut.item.base = nut.item.base or {}
@@ -107,7 +92,7 @@ function nut.item.newInv(owner, invType, callback)
 	}, function(data, invID)
 		local inventory = nut.item.createInv(invData.w, invData.h, invID)
 
-		if (owner > 0) then
+		if (owner and owner > 0) then
 			for k, v in ipairs(player.GetAll()) do
 				if (v:getChar() and v:getChar():getID() == owner) then
 					inventory:setOwner(owner)
@@ -138,14 +123,17 @@ function nut.item.load(path, baseID, isBaseItem)
 end
 
 function nut.item.register(uniqueID, baseID, isBaseItem, path, luaGenerated)
-	local meta = FindMetaTable("Item")
+	local meta = nut.meta.item
 
 	if (uniqueID) then
 		ITEM = (isBaseItem and nut.item.base or nut.item.list)[uniqueID] or setmetatable({}, meta)
+			ITEM.name = uniqueID
+			ITEM.desc = "noDesc"
 			ITEM.uniqueID = uniqueID
 			ITEM.base = baseID
 			ITEM.isBase = isBaseItem
 			ITEM.hooks = ITEM.hooks or {}
+			ITEM.postHooks = ITEM.postHooks or {}
 			ITEM.functions = ITEM.functions or {}
 			ITEM.functions.drop = ITEM.functions.drop or {
 				tip = "dropTip",
@@ -277,14 +265,14 @@ function nut.item.loadFromDir(directory)
 end
 
 function nut.item.new(uniqueID, id)
-	if (nut.item.instances[id]) then
+	if (nut.item.instances[id] and nut.item.instances[id].uniqueID == uniqueID) then
 		return nut.item.instances[id]
 	end
 
 	local stockItem = nut.item.list[uniqueID]
 
 	if (stockItem) then
-		local item = setmetatable({data = {}}, {__index = stockItem})
+		local item = setmetatable({}, {__index = stockItem})
 		item.id = id
 		item.data = {}
 
@@ -300,13 +288,17 @@ do
 	nut.util.include("nutscript/gamemode/core/meta/sh_inventory.lua")
 
 	function nut.item.createInv(w, h, id)
-		local inventory = setmetatable({w = w, h = h, id = id, slots = {}}, FindMetaTable("Inventory"))
+		local inventory = setmetatable({w = w, h = h, id = id, slots = {}}, nut.meta.inventory)
 			nut.item.inventories[id] = inventory
 			
 		return inventory
 	end
 
 	function nut.item.restoreInv(invID, w, h, callback)
+		if (type(invID) != "number" or invID < 0) then
+			error("Attempt to restore inventory with an invalid ID!")
+		end
+		
 		local inventory = nut.item.createInv(w, h, invID)
 
 		nut.db.query("SELECT _itemID, _uniqueID, _data, _x, _y FROM nut_items WHERE _invID = "..invID, function(data)
@@ -410,13 +402,14 @@ do
 			local item = nut.item.instances[id]
 
 			if (item) then
+				item.data = item.data or {}
 				item.data[key] = value
 
 				local panel = item.invID and nut.gui["inv"..item.invID] or nut.gui.inv1
 
 				if (panel and panel.panels) then
 					local icon = panel.panels[id]
-					icon:SetToolTip("Item #"..item.id.."\n"..L("itemInfo", item.name, item:getDesc()))
+					icon:SetToolTip("Item #"..item.id.."\n"..L("itemInfo", L(item.name), L(item:getDesc())))
 				end
 			end
 		end)
@@ -445,8 +438,9 @@ do
 						local icon = panel:addIcon(item.model or "models/props_junk/popcan01a.mdl", x, y, item.width, item.height)
 
 						if (IsValid(icon)) then
-							icon:SetToolTip("Item #"..item.id.."\n"..L("itemInfo", item.name, item:getDesc()))
-
+							icon:SetToolTip("Item #"..item.id.."\n"..L("itemInfo", L(item.name), L(item:getDesc())))
+							icon.itemID = item.id
+							
 							panel.panels[item.id] = icon
 						end
 					end
@@ -536,7 +530,7 @@ do
 			if (character) then
 				local inventory = nut.item.inventories[invID]
 
-				if (inventory and !inventory.owner or (inventory.owner and inventory.owner == character:getID())) then
+				if (inventory and (!inventory.owner or (inventory.owner and inventory.owner == character:getID())) or (inventory.onCheckAccess and inventory:onCheckAccess(client))) then
 					local item = inventory:getItemAt(oldX, oldY)
 
 					if (item) then
@@ -646,25 +640,36 @@ do
 
 			local callback = item.functions[action]
 
-			if (item.functions[action]) then
+			if (callback) then
 				if (callback.onCanRun and callback.onCanRun(item) == false) then
 					item.entity = nil
 					item.player = nil
 
 					return
 				end
-
+				
+				local entity = item.entity
+				local result
+				
 				if (item.hooks[action]) then
-					item.hooks[action](item)
+					result = item.hooks[action](item)
+				end
+				
+				if (result == nil) then
+					result = callback.onRun(item)
 				end
 
-				if (callback.onRun(item) != false) then
-					if (item.entity) then
-						item.entity.nutIsSafe = true
-						item.entity:Remove()
+				if (item.postHooks[action]) then
+					-- Posthooks shouldn't override the result from onRun
+					item.postHooks[action](item)
+				end
+				
+				if (result != false) then
+					if (IsValid(entity)) then
+						entity.nutIsSafe = true
+						entity:Remove()
 					else
-						inventory:remove(item.id, nil, true)
-						nut.db.query("UPDATE nut_items SET _invID = 0 WHERE _itemID = "..item.id)
+						item:remove()
 					end
 				end
 

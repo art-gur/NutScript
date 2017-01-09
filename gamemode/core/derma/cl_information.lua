@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 local PANEL = {}
 	function PANEL:Init()
 		if (IsValid(nut.gui.info)) then
@@ -21,20 +6,21 @@ local PANEL = {}
 
 		nut.gui.info = self
 
-		self:SetSize(ScrW() * 0.6, ScrH() * 0.6)
+		self:SetSize(ScrW() * 0.6, ScrH() * 0.7)
 		self:Center()
 
 		self.model = self:Add("nutModelPanel")
-		self.model:SetWide(ScrW() * 0.2)
+		self.model:SetWide(ScrW() * 0.25)
 		self.model:Dock(LEFT)
-		self.model:SetFOV(40)
+		self.model:SetFOV(50)
 		self.model.enableHook = true
+		self.model.copyLocalSequence = true
 
 		self.info = self:Add("DPanel")
 		self.info:SetWide(ScrW() * 0.4)
 		self.info:Dock(RIGHT)
 		self.info:SetDrawBackground(false)
-		self.info:DockMargin(0, 36, 0, 0)
+		self.info:DockMargin(150, ScrH() * 0.2, 0, 0)
 
 		self.name = self.info:Add("DLabel")
 		self.name:SetFont("nutHugeFont")
@@ -48,6 +34,13 @@ local PANEL = {}
 		self.desc:SetFont("nutMediumLightFont")
 		self.desc:SetTall(28)
 
+		self.time = self.info:Add("DLabel")
+		self.time:SetFont("nutMediumFont")
+		self.time:SetTall(28)
+		self.time:Dock(TOP)
+		self.time:SetTextColor(color_white)
+		self.time:SetExpensiveShadow(1, Color(0, 0, 0, 150))
+		
 		self.money = self.info:Add("DLabel")
 		self.money:Dock(TOP)
 		self.money:SetFont("nutMediumFont")
@@ -63,6 +56,7 @@ local PANEL = {}
 		self.faction:DockMargin(0, 10, 0, 0)
 
 		local class = nut.class.list[LocalPlayer():getChar():getClass()]
+		
 		if (class) then
 			self.class = self.info:Add("DLabel")
 			self.class:Dock(TOP)
@@ -102,12 +96,28 @@ local PANEL = {}
 		self.money:SetText(L("charMoney", nut.currency.get(LocalPlayer():getChar():getMoney())))
 		self.faction:SetText(L("charFaction", L(team.GetName(LocalPlayer():Team()))))
 		
+		local format = "%A, %d %B %Y %X"
+		
+		self.time:SetText(L("curTime", os.date(format, nut.date.get())))
+		self.time.Think = function(this)
+			if ((this.nextTime or 0) < CurTime()) then
+				this:SetText(L("curTime", os.date(format, nut.date.get())))
+				this.nextTime = CurTime() + 0.5
+			end
+		end
+
 		local class = nut.class.list[LocalPlayer():getChar():getClass()]
 		if (class) then
 			self.class:SetText(L("charClass", L(class.name)))
 		end
 		
 		self.model:SetModel(LocalPlayer():GetModel())
+		self.model.Entity:SetSkin(LocalPlayer():GetSkin())
+
+		for k, v in ipairs(LocalPlayer():GetBodyGroups()) do
+			self.model.Entity:SetBodygroup(v.id, LocalPlayer():GetBodygroup(v.id))
+		end
+
 		local ent = self.model.Entity
 		if (ent and IsValid(ent)) then
 			local mats = LocalPlayer():GetMaterials()

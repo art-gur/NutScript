@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 local gradient = nut.util.getMaterial("vgui/gradient-r.vtf")
 local glow = surface.GetTextureID("particle/Particle_Glow_04_Additive")
 
@@ -50,8 +35,10 @@ local PANEL = {}
 				self.authors:CenterHorizontal()
 
 				self.authors:AlphaTo(255, 3, 0.5, function()
-					self.sound:FadeOut(8)
-					self.sound:FadeOut(8)
+					if (self.sound) then
+						self.sound:FadeOut(8)
+						self.sound:FadeOut(8)
+					end
 
 					self.authors:AlphaTo(0, 3, 1, function()
 						LocalPlayer():EmitSound("music/hl2_song10.mp3", 150, 70)
@@ -99,7 +86,7 @@ local PANEL = {}
 		end
 		self.cover:SetPos(-100, 0)
 
-		timer.Simple(45, function()
+		timer.Simple(5, function()
 			if (IsValid(self)) then
 				self:addContinue()
 			end

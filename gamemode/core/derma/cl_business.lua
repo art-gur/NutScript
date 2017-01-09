@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 local PANEL = {}
 
 function PANEL:Init()
@@ -50,8 +35,8 @@ function PANEL:setItem(itemTable)
 	self.icon:Dock(FILL)
 	self.icon:DockMargin(5, 5, 5, 10)
 	self.icon:InvalidateLayout(true)
-	self.icon:SetModel(itemTable.model)
-	self.icon:SetToolTip(itemTable:getDesc())
+	self.icon:SetModel(itemTable.model, itemTable.skin or 0)
+	self.icon:SetToolTip(L(itemTable:getDesc()))
 	self.icon.DoClick = function(this)
 		if (!IsValid(nut.gui.checkout) and (this.nextClick or 0) < CurTime()) then
 			local parent = nut.gui.business
@@ -129,6 +114,7 @@ function PANEL:Init()
 	self.itemList:DockMargin(10, 5, 5, 5)
 	self.itemList:SetSpaceX(10)
 	self.itemList:SetSpaceY(10)
+	self.itemList:SetMinimumSize(128, 400)
 
 	self.checkout = self:Add("DButton")
 	self.checkout:Dock(BOTTOM)
@@ -164,6 +150,7 @@ function PANEL:Init()
 		button:SetTall(36)
 		button:SetText(category)
 		button:Dock(TOP)
+		button:SetTextColor(color_white)
 		button:DockMargin(5, 5, 5, 0)
 		button:SetFont("nutMediumFont")
 		button:SetExpensiveShadow(1, Color(0, 0, 0, 150))
@@ -215,6 +202,7 @@ function PANEL:loadItems(category, search)
 	local items = nut.item.list
 
 	self.itemList:Clear()
+	self.itemList:InvalidateLayout(true)
 
 	for uniqueID, itemTable in SortedPairsByMemberValue(items, "name") do
 		if (hook.Run("CanPlayerUseBusiness", LocalPlayer(), uniqueID) == false) then
@@ -264,6 +252,7 @@ PANEL = {}
 		self.buy = self:Add("DButton")
 		self.buy:Dock(BOTTOM)
 		self.buy:SetText(L"purchase")
+		self.buy:SetTextColor(color_white)
 		self.buy.DoClick = function(this)
 			if ((this.nextClick or 0) < CurTime()) then
 				this.nextClick = CurTime() + 0.5
@@ -280,6 +269,7 @@ PANEL = {}
 			end
 
 			netstream.Start("bizBuy", self.itemData)
+			self.itemData = {}
 
 			self.items:Remove()
 			self.data:Remove()
@@ -368,11 +358,13 @@ PANEL = {}
 	function PANEL:onQuantityChanged()
 		local price = 0
 		local money = LocalPlayer():getChar():getMoney()
+		local valid = 0
 
 		for k, v in pairs(self.itemData) do
 			local itemTable = nut.item.list[k]
 
-			if (itemTable) then
+			if (itemTable and v > 0) then
+				valid = valid + 1
 				price = price + (v * (itemTable.price or 0))
 			end
 		end
@@ -382,7 +374,7 @@ PANEL = {}
 		self.final:SetText("Money Left: "..nut.currency.get(money - price))
 		self.final:SetTextColor((money - price) >= 0 and Color(46, 204, 113) or Color(217, 30, 24))
 
-		self.preventBuy = (money - price) < 0
+		self.preventBuy = (money - price) < 0 or valid == 0
 	end
 
 	function PANEL:setCart(items)
@@ -401,7 +393,7 @@ PANEL = {}
 				slot.icon:SetPos(2, 2)
 				slot.icon:SetSize(32, 32)
 				slot.icon:SetModel(itemTable.model)
-				slot.icon:SetToolTip(itemTable:getDesc())
+				slot.icon:SetToolTip(L(itemTable:getDesc()))
 
 				slot.name = slot:Add("DLabel")
 				slot.name:SetPos(40, 2)
@@ -422,7 +414,7 @@ PANEL = {}
 					local value = tonumber(this:GetValue())
 
 					if (value) then
-						items[k] = math.Clamp(math.Round(value), 1, 10)
+						items[k] = math.Clamp(math.Round(value), 0, 10)
 						self:onQuantityChanged()
 					else
 						this:SetValue(1)

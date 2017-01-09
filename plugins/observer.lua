@@ -1,18 +1,3 @@
---[[
-	NutScript is free software: you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation, either version 3 of the License, or
-	(at your option) any later version.
-
-	NutScript is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
-
-	You should have received a copy of the GNU General Public License
-	along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 PLUGIN.name = "Observer"
 PLUGIN.author = "Chessnut"
 PLUGIN.desc = "Adds on to the no-clip mode to prevent instrusion."
@@ -53,13 +38,21 @@ if (CLIENT) then
 
 	function PLUGIN:SetupQuickMenu(menu)
 		if (LocalPlayer():IsAdmin()) then
-			local button = menu:addCheck(L"toggleESP", function(panel, state)
+			local buttonESP = menu:addCheck(L"toggleESP", function(panel, state)
 				if (state) then
 					RunConsoleCommand("nut_obsesp", "1")
 				else
 					RunConsoleCommand("nut_obsesp", "0")
 				end
 			end, NUT_CVAR_ADMINESP:GetBool())
+		
+			local buttonTP = menu:addCheck(L"toggleObserverTP", function(panel, state)
+				if (state) then
+					RunConsoleCommand("nut_obstpback", "1")
+				else
+					RunConsoleCommand("nut_obstpback", "0")
+				end
+			end, NUT_CVAR_OBSTPBACK:GetBool())
 
 			menu:addSpacer()
 		end

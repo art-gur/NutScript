@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 nut.char = nut.char or {}
 nut.char.loaded = nut.char.loaded or {}
 nut.char.vars = nut.char.vars or {}
@@ -24,6 +9,8 @@ if (SERVER) then
 	function nut.char.create(data, callback)
 		local timeStamp = math.floor(os.time())
 
+		data.money = data.money or nut.config.get("defMoney", 0)
+
 		nut.db.insertTable({
 			_name = data.name or "John Doe",
 			_desc = data.desc or "No description available.",
@@ -33,7 +20,7 @@ if (SERVER) then
 			_lastJoinTime = timeStamp,
 			_steamID = data.steamID,
 			_faction = data.faction or "Unknown",
-			_money = data.money or nut.config.get("defMoney", 0),
+			_money = data.money,
 			_data = data.data
 		}, function(data2, charID)
 			nut.db.query("INSERT INTO nut_inventories (_charID) VALUES ("..charID..")", function(_, invID)
@@ -167,7 +154,15 @@ if (SERVER) then
 end
 
 function nut.char.new(data, id, client, steamID)
-	local character = setmetatable({vars = {}}, FindMetaTable("Character"))
+	if (data.name) then
+		data.name = data.name:gsub("#", "#​")
+	end
+
+	if (data.desc) then
+		data.desc = data.desc:gsub("#", "#​")
+	end
+	
+	local character = setmetatable({vars = {}}, nut.meta.character)
 		for k, v in pairs(data) do
 			if (v != nil) then
 				character.vars[k] = v
@@ -392,12 +387,11 @@ do
 				bar:DockMargin(2, 2, 2, 2)
 				bar:setText(L(v.name))
 				bar.onChanged = function(this, difference)
-					total = total + difference
-
-					if (total > maximum) then
+					if ((total + difference) > maximum) then
 						return false
 					end
 
+					total = total + difference
 					panel.payload.attribs[k] = panel.payload.attribs[k] + difference
 				end
 
@@ -470,7 +464,6 @@ do
 
 	nut.char.registerVar("var", {
 		default = {},
-		isLocalVar = false,
 		noDisplay = true,
 		onSet = function(character, key, value, noReplication, receiver)
 			local data = character:getVar()
@@ -518,7 +511,7 @@ do
 			if (client:getChar() and client:getChar():getID() == id) then
 				netstream.Start(client, "charLoaded")
 				
-				return client:notify(L("usingChar", client))
+				return client:notifyLocalized("usingChar")
 			end
 
 			local character = nut.char.loaded[id]
@@ -546,8 +539,8 @@ do
 					currentChar:save()
 				end
 
-				client:Spawn()
 				character:setup()
+				client:Spawn()
 
 				hook.Run("PlayerLoadedChar", client, character, currentChar)
 			else
@@ -616,7 +609,7 @@ do
 
 				hook.Run("PreCharDelete", client, character)
 				nut.char.loaded[id] = nil
-				netstream.Start(nil, "charDel", id, isCurrentChar)
+				netstream.Start(nil, "charDel", id)
 				nut.db.query("DELETE FROM nut_characters WHERE _id = "..id.." AND _steamID = "..client:SteamID64())
 				nut.db.query("SELECT _invID FROM nut_inventories WHERE _charID = "..id, function(data)
 					if (data) then
@@ -633,7 +626,7 @@ do
 				hook.Run("OnCharDelete", client, id, isCurrentChar)
 				
 				if (isCurrentChar) then
-					client:setNetVar("charID", nil)
+					client:setNetVar("char", nil)
 					client:Spawn()
 				end
 			end
@@ -684,7 +677,9 @@ do
 			end
 		end)
 
-		netstream.Hook("charDel", function(id, isCurrentChar)
+		netstream.Hook("charDel", function(id)
+			local isCurrentChar = LocalPlayer():getChar() and LocalPlayer():getChar():getID() == id
+
 			nut.char.loaded[id] = nil
 
 			for k, v in ipairs(nut.characters) do
@@ -721,17 +716,13 @@ do
 	playerMeta.SteamName = playerMeta.steamName
 
 	function playerMeta:getChar()
-		return nut.char.loaded[self:getNetVar("char")]
+		return nut.char.loaded[self.getNetVar(self, "char")]
 	end
 
 	function playerMeta:Name()
-		local character = self:getChar()
-
-		if (character) then
-			return character:getName()
-		else
-			return self:steamName()
-		end
+		local character = self.getChar(self)
+		
+		return character and character.getName(character) or self.steamName(self)
 	end
 
 	playerMeta.Nick = playerMeta.Name

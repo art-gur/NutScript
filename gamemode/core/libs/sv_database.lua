@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 nut.db = nut.db or {}
 nut.util.include("nutscript/gamemode/config/sv_database.lua")
 
@@ -61,19 +46,35 @@ modules.tmysql4 = {
 	query = function(query, callback)
 		if (nut.db.object) then
 			nut.db.object:Query(query, function(data, status, lastID)
-				if (status == QUERY_SUCCESS) then
+				if (QUERY_SUCCESS and status == QUERY_SUCCESS) then
 					if (callback) then
 						callback(data, lastID)
 					end
 				else
+					if (data and data[1]) then
+						if (data[1].status) then
+							if (callback) then
+								callback(data[1].data, data[1].lastid)
+							end
+
+							return
+						else
+							lastID = data[1].error
+						end
+					end
+
 					file.Write("nut_queryerror.txt", query)
-					ThrowQueryFault(query, lastID)
+					ThrowQueryFault(query, lastID or "")
 				end
 			end, 3)
 		end
 	end,
 	escape = function(value)
-		return tmysql and tmysql.escape(value) or sql.SQLStr(value, true)
+		if (nut.db.object) then
+			return nut.db.object:Escape(value)
+		end
+
+		return tmysql and tmysql.escape and tmysql.escape(value) or sql.SQLStr(value, true)
 	end,
 	connect = function(callback)
 		if (!pcall(require, "tmysql4")) then
@@ -101,6 +102,8 @@ modules.tmysql4 = {
 	end
 }
 
+MYSQLOO_QUEUE = MYSQLOO_QUEUE or {}
+
 -- mysqloo for MySQL storage.
 modules.mysqloo = {
 	query = function(query, callback)
@@ -114,6 +117,13 @@ modules.mysqloo = {
 			end
 
 			function object:onError(fault)
+				if (nut.db.object:status() == mysqloo.DATABASE_NOT_CONNECTED) then
+					MYSQLOO_QUEUE[#MYSQLOO_QUEUE + 1] = {query, callback}
+					nut.db.connect()
+
+					return
+				end
+
 				ThrowQueryFault(query, fault)
 			end
 
@@ -146,6 +156,12 @@ modules.mysqloo = {
 			nut.db.escape = modules.mysqloo.escape
 			nut.db.query = modules.mysqloo.query
 
+			for k, v in ipairs(MYSQLOO_QUEUE) do
+				nut.db.query(v[1], v[2])
+			end
+
+			MYSQLOO_QUEUE = {}
+
 			if (callback) then
 				callback()
 			end
@@ -156,6 +172,10 @@ modules.mysqloo = {
 		end
 
 		object:connect()
+
+		timer.Create("nutMySQLWakeUp", 300, 0, function()
+			nut.db.query("SELECT 1 + 1")
+		end)
 	end
 }
 
@@ -182,7 +202,7 @@ local MYSQL_CREATE_TABLES = [[
 CREATE TABLE IF NOT EXISTS `nut_characters` (
 	`_id` int(11) unsigned NOT NULL AUTO_INCREMENT,
 	`_name` varchar(70) NOT NULL,
-	`_desc` tinytext NOT NULL,
+	`_desc` text NOT NULL,
 	`_model` varchar(160) NOT NULL,
 	`_attribs` varchar(180) DEFAULT NULL,
 	`_schema` varchar(24) NOT NULL,

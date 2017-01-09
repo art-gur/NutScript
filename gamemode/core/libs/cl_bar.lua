@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 nut.bar = nut.bar or {}
 nut.bar.list = {}
 nut.bar.delta = nut.bar.delta or {}
@@ -20,14 +5,22 @@ nut.bar.actionText = ""
 nut.bar.actionStart = 0
 nut.bar.actionEnd = 0
 
+function nut.bar.get(identifier)
+	for i = 1, #nut.bar.list do
+		local bar = nut.bar.list[i]
+		
+		if (bar and bar.identifier == identifier) then
+			return bar
+		end
+	end
+end
+
 function nut.bar.add(getValue, color, priority, identifier)
 	if (identifier) then
-		for k, v in ipairs(nut.bar.list) do
-			if (v.identifier == identifier) then
-				table.remove(nut.bar.list, k)
-
-				break
-			end
+		local oldBar = nut.bar.get(identifier)
+		
+		if (oldBar) then
+			table.remove(nut.bar.list, oldBar.priority)
 		end
 	end
 
@@ -46,17 +39,10 @@ function nut.bar.add(getValue, color, priority, identifier)
 	return priority
 end
 
-function nut.bar.get(identifier)
-	for k, v in ipairs(nut.bar.list) do
-		if (v.identifier == identifier) then
-			return v
-		end
-	end
-end
-
 local color_dark = Color(0, 0, 0, 225)
 local gradient = nut.util.getMaterial("vgui/gradient-u")
 local gradient2 = nut.util.getMaterial("vgui/gradient-d")
+local surface = surface
 
 function nut.bar.draw(x, y, w, h, value, color)
 	nut.util.drawBlurAt(x, y, w, h)
@@ -115,26 +101,36 @@ end
 local Approach = math.Approach
 
 BAR_HEIGHT = 10
+
 function nut.bar.drawAll()
+	if (hook.Run("ShouldHideBars")) then
+		return
+	end
+	
 	local w, h = surface.ScreenWidth() * 0.35, BAR_HEIGHT
 	local x, y = 4, 4
 	local deltas = nut.bar.delta
 	local frameTime = FrameTime()
 	local curTime = CurTime()
-
-	for k, v in ipairs(nut.bar.list) do
-		local realValue = v.getValue()
-		local value = Approach(deltas[k] or 0, realValue, frameTime * 0.6)
-
-		deltas[k] = value
-
-		if (deltas[k] != realValue) then
-			v.lifeTime = curTime + 5
-		end
-
-		if (v.lifeTime >= curTime or v.visible) then
-			nut.bar.draw(x, y, w, h, value, v.color, v)
-			y = y + (h + 2)
+	local updateValue = frameTime * 0.6
+	
+	for i = 1, #nut.bar.list do
+		local bar = nut.bar.list[i]
+		
+		if (bar) then
+			local realValue = bar.getValue()
+			local value = Approach(deltas[i] or 0, realValue, updateValue)
+			
+			deltas[i] = value
+			
+			if (deltas[i] != realValue) then
+				bar.lifeTime = curTime + 5
+			end
+			
+			if (bar.lifeTime >= curTime or bar.visible or hook.Run("ShouldBarDraw", bar)) then
+				nut.bar.draw(x, y, w, h, value, bar.color, bar)
+				y = y + h + 2
+			end
 		end
 	end
 

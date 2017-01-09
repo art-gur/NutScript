@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 PLUGIN.name = "Ammo Saver"
 PLUGIN.author = "Black Tea"
 PLUGIN.desc = "Saves the ammo of a character."
@@ -54,6 +39,7 @@ nut.ammo.register("helicoptergun")
 function PLUGIN:CharacterPreSave(character)
 	-- Get the player from the character.
 	local client = character:getPlayer()
+
 	-- Check to see if we can get the player's ammo.
 	if (IsValid(client)) then
 		local ammoTable = {}
@@ -71,15 +57,26 @@ function PLUGIN:CharacterPreSave(character)
 end
 
 -- Called after the player's loadout has been set.
-function PLUGIN:PostPlayerLoadout(client)
-	-- Get the saved ammo table from the character data.
-	local character = client:getChar()
-	local ammoTable = character:getData("ammo")
-
-	-- Check if the ammotable is exists.
-	if (ammoTable) then
-		for k, v in pairs(ammoTable) do
-			client:GiveAmmo(v, k)
+function PLUGIN:PlayerLoadedChar(client)
+	timer.Simple(0.25, function()
+		if (!IsValid(client)) then
+			return
 		end
-	end
+
+		-- Get the saved ammo table from the character data.
+		local character = client:getChar()
+
+		if (!character) then
+			return
+		end
+		
+		local ammoTable = character:getData("ammo")
+
+		-- Check if the ammotable is exists.
+		if (ammoTable) then
+			for k, v in pairs(ammoTable) do
+				client:SetAmmo(v, k)
+			end
+		end
+	end)
 end

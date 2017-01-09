@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 local PANEL = {}
 	function PANEL:Init()
 		self:SetSize(280, 240)
@@ -47,7 +32,7 @@ local PANEL = {}
 		end
 	end
 
-	function PANEL:setDoor(door, access)
+	function PANEL:setDoor(door, access, door2)
 		door.nutPanel = self
 
 		self.accessData = access
@@ -63,6 +48,7 @@ local PANEL = {}
 			self.sell = self:Add("DButton")
 			self.sell:Dock(BOTTOM)
 			self.sell:SetText(L"sell")
+			self.sell:SetTextColor(color_white)
 			self.sell:DockMargin(0, 5, 0, 0)
 			self.sell.DoClick = function(this)
 				self:Remove()
@@ -76,7 +62,9 @@ local PANEL = {}
 			self.name:DockMargin(0, 0, 0, 5)
 			self.name.Think = function(this)
 				if (!this:IsEditing()) then
-					self.name:SetText(door:getNetVar("title", L"dTitleOwned"))
+					local entity = IsValid(door2) and door2 or door
+
+					self.name:SetText(entity:getNetVar("title", L"dTitleOwned"))
 				end
 			end
 			self.name.OnEnter = function(this)

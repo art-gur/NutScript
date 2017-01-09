@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 PLUGIN.name = "3D Panels"
 PLUGIN.author = "Chessnut"
 PLUGIN.desc = "Adds web panels that can be placed on the map."
@@ -135,13 +120,13 @@ else
 	function PLUGIN:PostDrawTranslucentRenderables(drawingDepth, drawingSkyBox)
 		if (!drawingDepth and !drawingSkyBox) then
 			-- Store the position of the player to be more optimized.
-			local position = LocalPlayer():GetPos()
+			local ourPosition = LocalPlayer():GetPos()
 
 			-- Loop through all of the panel.
 			for k, v in pairs(self.list) do
 				local position = v[1]
 
-				--if (LocalPlayer():VisibleVec(position)) then
+				if (ourPosition:DistToSqr(position) <= 4194304) then
 					local panel = v[6]
 
 					-- Start a 3D2D camera at the panel's position and angles.
@@ -150,7 +135,7 @@ else
 							panel:PaintManual()
 						panel:SetPaintedManually(true)
 					cam.End3D2D()
-				--end
+				end
 			end
 		end
 	end
@@ -172,7 +157,7 @@ nut.command.add("paneladd", {
 		angles:RotateAroundAxis(angles:Forward(), 90)
 		
 		-- Add the panel.
-		PLUGIN:addPanel(position, angles, arguments[1], tonumber(arguments[2]), tonumber(arguments[3]), tonumber(arguments[4]))
+		PLUGIN:addPanel(position + angles:Up()*0.1, angles, arguments[1], tonumber(arguments[2]), tonumber(arguments[3]), tonumber(arguments[4]))
 
 		-- Tell the player the panel was added.
 		return L("panelAdded", client)

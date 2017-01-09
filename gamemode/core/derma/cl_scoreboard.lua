@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 local PANEL = {}
 	local paintFunctions = {}
 	paintFunctions[0] = function(this, w, h)
@@ -29,7 +14,7 @@ local PANEL = {}
 
 		nut.gui.score = self
 
-		self:SetSize(ScrW() * 0.325, ScrH() * 0.825)
+		self:SetSize(ScrW() * nut.config.get("sbWidth"), ScrH() * nut.config.get("sbHeight"))
 		self:Center()
 
 		self.title = self:Add("DLabel")
@@ -46,72 +31,66 @@ local PANEL = {}
 			surface.DrawRect(0, 0, w, h)
 		end
 
-		self.scroll = self:Add("DListLayout")
+		self.scroll = self:Add("DScrollPanel")
 		self.scroll:Dock(FILL)
 		self.scroll:DockMargin(1, 0, 1, 0)
+		self.scroll.VBar:SetWide(0)
 
-		self.nextUpdate = 0
-		self.players = {}
-		self.slots = {}
+		self.layout = self.scroll:Add("DListLayout")
+		self.layout:Dock(TOP)
 
-		self:populate()
-	end
-
-	function PANEL:populate()
-		self.scroll:Clear()
 		self.teams = {}
-		self.tallies = {}
+		self.slots = {}
+		self.i = {}
 
 		for k, v in ipairs(nut.faction.indices) do
-			self.teams[k] = {}
-
 			local color = team.GetColor(k)
 			local r, g, b = color.r, color.g, color.b
 
-			local list = self.scroll:Add("DListLayout")
+			local list = self.layout:Add("DListLayout")
 			list:Dock(TOP)
-			list:SetTall(0)
+			list:SetTall(28)
 			list.Think = function(this)
-				if (#this:GetChildren() <= 1) then
-					this:SetVisible(false)
-				else
-					this:SetVisible(true)
+				for k2, v2 in ipairs(team.GetPlayers(k)) do
+					if (!IsValid(v2.nutScoreSlot) or v2.nutScoreSlot:GetParent() != this) then
+						if (IsValid(v2.nutPlayerSlot)) then
+							v2.nutPlayerSlot:SetParent(this)
+						else
+							self:addPlayer(v2, this)
+						end
+					end
 				end
 			end
 
-			local panel = list:Add("DLabel")
-			panel:Dock(TOP)
-			panel.Paint = function(this, w, h)
-				surface.SetDrawColor(r, g, b, 50)
+			local header = list:Add("DLabel")
+			header:Dock(TOP)
+			header:SetText(L(v.name))
+			header:SetTextInset(3, 0)
+			header:SetFont("nutMediumFont")
+			header:SetTextColor(color_white)
+			header:SetExpensiveShadow(1, color_black)
+			header:SetTall(28)
+			header.Paint = function(this, w, h)
+				surface.SetDrawColor(r, g, b, 20)
 				surface.DrawRect(0, 0, w, h)
 			end
-			panel:SetText(L(v.name))
-			panel:SetTextInset(3, 0)
-			panel:SetFont("nutMediumFont")
-			panel:SetTextColor(color_white)
-			panel:SetExpensiveShadow(1, color_black)
-			panel:SetTall(28)
 
 			self.teams[k] = list
-			self.tallies[k] = team.NumPlayers(k)
-
-			self.i = 0
-
-			for k, v in ipairs(team.GetPlayers(k)) do
-				self:addPlayer(v, list)
-			end
 		end
 	end
 
 	function PANEL:Think()
-		if (self.nextUpdate < CurTime()) then
-			for k, v in ipairs(player.GetAll()) do
-				if (v:getChar()) then
-					if (!IsValid(v:getChar().nutScoreSlot)) then
-						local teamID = v:Team()
+		if ((self.nextUpdate or 0) < CurTime()) then
+			local visible, amount
 
-						self:addPlayer(v, self.teams[teamID])
-					end
+			for k, v in ipairs(self.teams) do
+				visible, amount = v:IsVisible(), team.NumPlayers(k)
+
+				if (visible and amount == 0) then
+					v:SetVisible(false)
+					self.layout:InvalidateLayout()
+				elseif (!visible and amount > 0) then
+					v:SetVisible(true)
 				end
 			end
 
@@ -121,34 +100,60 @@ local PANEL = {}
 				end
 			end
 
-			self.nextUpdate = CurTime() + 0.25
+			self.nextUpdate = CurTime() + 0.1
 		end
 	end
 
 	function PANEL:addPlayer(client, parent)
-		if (!client:getChar() and !IsValid(parent)) then return end
-
-		parent:SetTall(28)
+		if (!client:getChar() or !IsValid(parent)) then
+			return
+		end
 
 		local slot = parent:Add("DPanel")
 		slot:Dock(TOP)
 		slot:SetTall(64)
 		slot:DockMargin(0, 0, 0, 1)
-		slot.Paint = paintFunctions[self.i]
 		slot.character = client:getChar()
 
-		client:getChar().nutScoreSlot = slot
+		client.nutScoreSlot = slot
 
-		slot.model = slot:Add("SpawnIcon")
+		slot.model = slot:Add("nutSpawnIcon")
 		slot.model:SetModel(client:GetModel(), client:GetSkin())
 		slot.model:SetSize(64, 64)
-		slot.model.PaintOver = function() end
-		slot.model:SetToolTip(L("sbOptions", client:Name()))
-		slot.model.OnMousePressed = function()
+		slot.model.DoClick = function()
 			local menu = DermaMenu()
-				hook.Run("ShowPlayerOptions", client, menu)
+				local options = {}
+
+				hook.Run("ShowPlayerOptions", client, options)
+
+				if (table.Count(options) > 0) then
+					for k, v in SortedPairs(options) do
+						menu:AddOption(L(k), v[2]):SetImage(v[1])
+					end
+				end
 			menu:Open()
+
+			RegisterDermaMenuForClose(menu)
 		end
+		slot.model:SetToolTip(L("sbOptions", client:steamName()))
+
+		timer.Simple(0, function()
+			if (!IsValid(slot)) then
+				return
+			end
+
+			local entity = slot.model.Entity
+
+			if (IsValid(entity)) then
+				for k, v in ipairs(client:GetBodyGroups()) do
+					entity:SetBodygroup(v.id, client:GetBodygroup(v.id))
+				end
+
+				for k, v in ipairs(client:GetMaterials()) do
+					entity:SetSubMaterial(k - 1, client:GetSubMaterial(k - 1))
+				end
+			end
+		end)
 
 		slot.name = slot:Add("DLabel")
 		slot.name:SetText(client:Name())
@@ -179,43 +184,92 @@ local PANEL = {}
 		slot.desc:DockMargin(65, 0, 48, 0)
 		slot.desc:SetWrap(true)
 		slot.desc:SetContentAlignment(7)
-		slot.desc:SetText(client:getChar() and client:getChar():getDesc())
+		slot.desc:SetText(hook.Run("GetDisplayedDescription", client) or (client:getChar() and client:getChar():getDesc()) or "")
 		slot.desc:SetTextColor(color_white)
 		slot.desc:SetExpensiveShadow(1, Color(0, 0, 0, 100))
 		slot.desc:SetFont("nutSmallFont")
 
+		local oldTeam = client:Team()
+
 		function slot:update()
-			if (!IsValid(client) or !client:getChar() or !self.character or self.character != client:getChar()) then
-				return self:Remove()
+			if (!IsValid(client) or !client:getChar() or !self.character or self.character != client:getChar() or oldTeam != client:Team()) then
+				self:Remove()
+
+				local i = 0
+
+				for k, v in ipairs(parent:GetChildren()) do
+					if (IsValid(v.model) and v != self) then
+						i = i + 1
+						v.Paint = paintFunctions[i % 2]
+					end
+				end
+
+				return
 			end
 
-			local name = client:Name()
+			local overrideName = hook.Run("ShouldAllowScoreboardOverride", client, "name") and hook.Run("GetDisplayedName", client)
+			local name = overrideName or client:Name()
 			local model = client:GetModel()
-			local desc = client:getChar():getDesc()
+			local skin = client:GetSkin()
+			local desc = hook.Run("ShouldAllowScoreboardOverride", client, "desc") and hook.Run("GetDisplayedDescription", client) or (client:getChar() and client:getChar():getDesc()) or ""
+
+			self.model:setHidden(overrideName)
 
 			if (self.lastName != name) then
 				self.name:SetText(name)
 				self.lastName = name
 			end
 
-			if (self.lastModel != model) then
-				self.model:SetModel(client:GetModel(), client:GetSkin())
-				self.lastModel = model
-			end
+			local entity = self.model.Entity
 
 			if (self.lastDesc != desc) then
 				self.desc:SetText(desc)
 				self.lastDesc = desc
 			end
+
+			if (!IsValid(entity)) then
+				return
+			end
+
+			if (self.lastModel != model or self.lastSkin != skin) then
+				self.model:SetModel(client:GetModel(), client:GetSkin())
+				self.model:SetToolTip(L("sbOptions", client:steamName()))
+				
+				self.lastModel = model
+				self.lastSkin = skin
+			end
+
+			timer.Simple(0, function()
+				if (!IsValid(entity) or !IsValid(client)) then
+					return
+				end
+
+				for k, v in ipairs(client:GetBodyGroups()) do
+					entity:SetBodygroup(v.id, client:GetBodygroup(v.id))
+				end
+			end)
 		end
 
-		self.i = math.abs(self.i - 1)
 		self.slots[#self.slots + 1] = slot
 
 		parent:SetVisible(true)
 		parent:SizeToChildren(false, true)
+		parent:InvalidateLayout(true)
+
+		local i = 0
+
+		for k, v in ipairs(parent:GetChildren()) do
+			if (IsValid(v.model)) then
+				i = i + 1
+				v.Paint = paintFunctions[i % 2]
+			end
+		end
 
 		return slot
+	end
+
+	function PANEL:OnRemove()
+		CloseDermaMenus()
 	end
 
 	function PANEL:Paint(w, h)

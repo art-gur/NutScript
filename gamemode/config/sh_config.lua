@@ -1,24 +1,15 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
+-- You can change the default language here:
+nut.config.language = "english"
 
 --[[
+	DO NOT CHANGE ANYTHING BELOW THIS.
+
 	This is the NutScript main configuration file.
 	This file DOES NOT set any configurations, instead it just prepares them.
 	To set the configuration, there is a "Config" tab in the F1 menu for super admins and above.
 	Use the menu to change the variables, not this file.
 --]]
+
 nut.config.add("maxChars", 5, "The maximum number of characters a player can have.", nil, {
 	data = {min = 1, max = 50},
 	category = "characters"
@@ -84,6 +75,11 @@ end, {
 	data = {min = 75, max = 500},
 	category = "characters"
 })
+nut.config.add("walkRatio", 0.5, "How fast one goes when holding ALT.", nil, {
+	form = "Float",
+	data = {min = 0, max = 1},
+	category = "characters"
+})
 nut.config.add("punchStamina", 10, "How much stamina punches use up.", nil, {
 	data = {min = 0, max = 100},
 	category = "characters"
@@ -96,4 +92,35 @@ nut.config.add("logo", "http://nutscript.rocks/nutscript.png", "The icon shown o
 })
 nut.config.add("logoURL", "http://nutscript.rocks/", "The URL opened when the icon is clicked.", nil, {
 	category = "appearance"
+})
+nut.config.add("sbRecog", false, "Whether or not recognition is used in the scoreboard.", nil, {
+	category = "characters"
+})
+nut.config.add("defMoney", 0, "The amount of money that players start with.", nil, {
+	category = "characters",
+	data = {min = 0, max = 1000}
+})
+nut.config.add("allowVoice", false, "Whether or not voice chat is allowed.", nil, {
+	category = "server"
+})
+nut.config.add("sbWidth", 0.325, "Scoreboard's width within percent of screen width.", function(oldValue, newValue)
+	if (CLIENT and IsValid(nut.gui.score)) then
+		nut.gui.score:Remove()
+	end
+end, {
+	form = "Float",
+	category = "visual",
+	data = {min = 0.2, max = 1}
+})
+nut.config.add("sbHeight", 0.825, "Scoreboard's height within percent of screen height.", function(oldValue, newValue)
+	if (CLIENT and IsValid(nut.gui.score)) then
+		nut.gui.score:Remove()
+	end
+end, {
+	form = "Float",
+	category = "visual",
+	data = {min = 0.3, max = 1}
+})
+nut.config.add("wepAlwaysRaised", false, "Whether or not weapons are always raised.", nil, {
+	category = "server"
 })

@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 nut.command = nut.command or {}
 nut.command.list = nut.command.list or {}
 
@@ -31,52 +16,72 @@ function nut.command.add(command, data)
 	-- Store the old onRun because we're able to change it.
 	local onRun = data.onRun
 
-	-- Check if the command is for basic admins only.
-	if (data.adminOnly) then
-		data.onRun = function(client, arguments)
-			if (client:IsAdmin()) then
-				return onRun(client, arguments)
-			else
-				return "@noPerm"
+	if (!data.onCheckAccess) then
+		-- Check if the command is for basic admins only.
+		if (data.adminOnly) then
+			data.onCheckAccess = function(client)
+				return client:IsAdmin()
 			end
-		end
-	-- Or if it is only for super administrators.
-	elseif (data.superAdminOnly) then
-		data.onRun = function(client, arguments)
-			if (client:IsSuperAdmin()) then
-				return onRun(client, arguments)
-			else
-				return "@noPerm"
+		-- Or if it is only for super administrators.
+		elseif (data.superAdminOnly) then
+			data.onCheckAccess = function(client)
+				return client:IsSuperAdmin()
 			end
-		end
-	-- Or if we specify a usergroup allowed to use this.
-	elseif (data.group) then
-		-- The group property can be a table of usergroups.
-		if (type(data.group) == "table") then
-			data.onRun = function(client, arguments)
-				-- Check if the client's group is allowed.
-				for k, v in ipairs(data.group) do
-					if (client:IsUserGroup(v)) then
-						return onRun(client, arguments)
+		-- Or if we specify a usergroup allowed to use this.
+		elseif (data.group) then
+			-- The group property can be a table of usergroups.
+			if (type(data.group) == "table") then
+				data.onCheckAccess = function(client)
+					-- Check if the client's group is allowed.
+					for k, v in ipairs(data.group) do
+						if (client:IsUserGroup(v)) then
+							return true
+						end
 					end
-				end
 
-				return "@noPerm"
-			end
-		-- Otherwise it is most likely a string.
-		else
-			data.onRun = function(client, arguments)
-				if (client:IsUserGroup(data.group)) then
-					return onRun(client, arguments)
-				else
-					return "@noPerm"
+					return false
 				end
-			end		
+			-- Otherwise it is most likely a string.
+			else
+				data.onCheckAccess = function(client)
+					return client:IsUserGroup(data.group)
+				end		
+			end
+		end
+	end
+
+	local onCheckAccess = data.onCheckAccess
+
+	-- Only overwrite the onRun to check for access if there is anything to check.
+	if (onCheckAccess) then
+		local onRun = data.onRun
+
+		data.onRun = function(client, arguments)
+			if (!onCheckAccess(client)) then
+				return "@noPerm"
+			else
+				return onRun(client, arguments)
+			end
 		end
 	end
 
 	-- Add the command to the list of commands.
 	nut.command.list[command] = data
+end
+
+-- Returns whether or not a player is allowed to run a certain command.
+function nut.command.hasAccess(client, command)
+	command = nut.command.list[command]
+
+	if (command) then
+		if (command.onCheckAccess) then
+			return command.onCheckAccess(client)
+		else
+			return true
+		end
+	end
+
+	return false
 end
 
 -- Gets a table of arguments from a string.
@@ -122,12 +127,12 @@ end
 if (SERVER) then
 	-- Finds a player or gives an error notification.
 	function nut.command.findPlayer(client, name)
-		local target = nut.util.findPlayer(name)
+		local target = type(name) == "string" and nut.util.findPlayer(name) or NULL
 
 		if (IsValid(target)) then
 			return target
 		else
-			client:notify(L("plyNoExist", client))
+			client:notifyLocalized("plyNoExist")
 		end
 	end
 
@@ -173,9 +178,13 @@ if (SERVER) then
 
 				-- Runs the actual command.
 				nut.command.run(client, match, arguments)
+
+				if (!realCommand) then
+					nut.log.add(client:Name().." used \""..text.."\"")
+				end
 			else
 				if (IsValid(client)) then
-					client:notify(L("cmdNoExist", client))
+					client:notifyLocalized("cmdNoExist")
 				else
 					print("Sorry, that command does not exist.")
 				end

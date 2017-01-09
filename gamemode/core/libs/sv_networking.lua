@@ -1,25 +1,29 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 local entityMeta = FindMetaTable("Entity")
 local playerMeta = FindMetaTable("Player")
 
 nut.net = nut.net or {}
 nut.net.globals = nut.net.globals or {}
 
+-- Check if there is an attempt to send a function. Can't send those.
+local function checkBadType(name, object)
+	local objectType = type(object)
+	
+	if (objectType == "function") then
+		ErrorNoHalt("Net var '"..name.."' contains a bad object type!")
+		
+		return true
+	elseif (objectType == "table") then
+		for k, v in pairs(object) do
+			-- Check both the key and the value for tables, and has recursion.
+			if (checkBadType(name, k) or checkBadType(name, v)) then
+				return true
+			end
+		end
+	end
+end
+
 function setNetVar(key, value, receiver)
+	if (checkBadType(key, value)) then return end
 	if (getNetVar(key) == value) then return end
 
 	nut.net.globals[key] = value
@@ -50,6 +54,8 @@ function entityMeta:clearNetVars(receiver)
 end
 
 function entityMeta:setNetVar(key, value, receiver)
+	if (checkBadType(key, value)) then return end
+		
 	nut.net[self] = nut.net[self] or {}
 
 	if (nut.net[self][key] != value) then
@@ -68,6 +74,8 @@ function entityMeta:getNetVar(key, default)
 end
 
 function playerMeta:setLocalVar(key, value)
+	if (checkBadType(key, value)) then return end
+	
 	nut.net[self] = nut.net[self] or {}
 	nut.net[self][key] = value
 

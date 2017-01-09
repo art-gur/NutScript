@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 local PLUGIN = PLUGIN
 PLUGIN.name = "Area"
 PLUGIN.author = "Black Tea"
@@ -36,6 +21,7 @@ nut.config.add("areaDispSpeed", 20, "The Appearance Speed of Area Display.", nil
 })
 
 local playerMeta = FindMetaTable("Player")
+local PLUGIN = PLUGIN
 
 if (SERVER) then
 	function nut.area.getArea(areaID)
@@ -69,7 +55,7 @@ if (SERVER) then
 		return self.curArea
 	end
 
-	function PLUGIN:SaveData()
+	function PLUGIN:saveAreas()
 		self:setData(self.areaTable)
 	end
 
@@ -121,11 +107,12 @@ if (SERVER) then
 			maxVector = maxVector, 
 			desc = desc or "",
 		})
+
+		PLUGIN:saveAreas()
 	end
 
-	-- Think. Chessnut hates this. 
-	-- What do I have to do?
-	function PLUGIN:Think()
+	-- Timer instead of heavy think.
+	timer.Create("nutAreaController", 0.33, 0, function()
 		for k, v in ipairs(player.GetAll()) do
 			local char = v:getChar()
 
@@ -144,7 +131,7 @@ if (SERVER) then
 				end
 			end
 		end
-	end
+	end)
 
 	-- If area is changed, set display Area's Name to the client's screen.
 	function PLUGIN:OnPlayerAreaChanged(client, areaID)
@@ -160,9 +147,12 @@ if (SERVER) then
 
 		-- If area is valid, merge editData to areaData.
 		local areaData = table.Copy(nut.area.getArea(areaID))
+
 		if (areaData) then
-			client:notify(L("areaModified", client, areaID))
+			client:notifyLocalized("areaModified", areaID)
+
 			PLUGIN.areaTable[areaID] = table.Merge(areaData, editData)
+			PLUGIN:saveAreas()
 		end
 	end)
 
@@ -174,6 +164,7 @@ if (SERVER) then
 
 		-- If area is valid, merge editData to areaData.
 		local areaData = table.Copy(nut.area.getArea(areaID))
+
 		if (areaData) then
 			local min, max = areaData.maxVector, areaData.minVector
 			client:SetPos(min + (max - min)/2)
@@ -198,8 +189,10 @@ if (SERVER) then
 		-- If area is valid, merge editData to areaData.
 		local areaData = table.Copy(nut.area.getArea(areaID))
 		if (areaData) then
-			client:notify(L("areaRemoved", client, areaID))
+			client:notifyLocalized("areaRemoved", areaID)
+
 			PLUGIN.areaTable[areaID] = nil
+			PLUGIN:saveAreas()
 		end
 	end)
 else
@@ -394,6 +387,7 @@ nut.command.add("areaadd", {
 		local name = table.concat(arguments, " ") or "Area"
 
 		local pos = client:GetEyeTraceNoCursor().HitPos
+
 		if (!client:getNetVar("areaMin")) then
 			if (!name) then
 				nut.util.Notify(nut.lang.Get("missing_arg", 1), client)
@@ -405,7 +399,7 @@ nut.command.add("areaadd", {
 			client:setNetVar("areaMin", pos, client)
 			client:setNetVar("areaName", name, client)
 
-			client:notify(L("areaCommand", client))
+			return "@areaCommand"
 		else
 			local min = client:getNetVar("areaMin")
 			local max = pos
@@ -417,7 +411,8 @@ nut.command.add("areaadd", {
 			client:setNetVar("areaName", nil, client)
 
 			nut.area.addArea(name, min, max)
-			client:notify(L("areaAdded", client, name))
+			
+			return "@areaAdded", name
 		end
 	end
 })
@@ -426,15 +421,18 @@ nut.command.add("arearemove", {
 	adminOnly = true,
 	onRun = function(client, arguments)
 		local areaID = client:getArea()
+
 		if (!areaID) then
 			return
 		end
 
 		local areaData = nut.area.getArea(areaID)
-		if (areaData) then
-			client:notify(L("areaRemoved", client, areaData.name))
 
+		if (areaData) then
 			table.remove(PLUGIN.areaTable, areaID)
+			PLUGIN:saveAreas()
+
+			return "@areaRemoved", areaData.name
 		end
 	end
 })
@@ -445,14 +443,18 @@ nut.command.add("areachange", {
 	onRun = function(client, arguments)
 		local name = table.concat(arguments, " ") or "Area"
 		local areaID = client:getArea()
+
 		if (!areaID) then
 			return
 		end
 
 		local areaData = nut.area.getArea(areaID)
+
 		if (areaData) then
-			client:notify(L("areaChanged", client, name, areaData.name))
 			areaData.name = name
+			PLUGIN:saveAreas()
+
+			return "@areaChanged", name, areaData.name
 		end
 	end
 })

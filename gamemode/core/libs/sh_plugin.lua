@@ -1,20 +1,6 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 nut.plugin = nut.plugin or {}
 nut.plugin.list = nut.plugin.list or {}
+nut.plugin.unloaded = nut.plugin.unloaded or {}
 
 HOOKS_CACHE = {}
 
@@ -25,7 +11,7 @@ function nut.plugin.load(uniqueID, path, isSingleFile, variable)
 
 	-- Plugins within plugins situation?
 	local oldPlugin = PLUGIN
-	local PLUGIN = {folder = path, plugin = oldPlugin, uniqueID = uniqueID}
+	local PLUGIN = {folder = path, plugin = oldPlugin, uniqueID = uniqueID, name = "Unknown", desc = "Description not available", author = "Anonymous"}
 
 	if (uniqueID == "schema") then
 		if (SCHEMA) then
@@ -69,7 +55,7 @@ function nut.plugin.load(uniqueID, path, isSingleFile, variable)
 	end
 
 	function PLUGIN:getData(default, global, ignoreMap, refresh)
-		return nut.data.get(uniqueID2, default, global, ignoreMap, refresh)
+		return nut.data.get(uniqueID2, default, global, ignoreMap, refresh) or {}
 	end
 
 	hook.Run("PluginLoaded", uniqueID, PLUGIN)
@@ -194,14 +180,46 @@ function nut.plugin.loadFromDir(directory)
 	end
 end
 
-function nut.plugin.unload(uniqueID)
+function nut.plugin.setUnloaded(uniqueID, state, noSave)
 	local plugin = nut.plugins.list[uniqueID]
+
+	if (state) then
+		if (plugin.onLoaded) then
+			plugin:onLoaded()
+		end
+
+		if (nut.plugin.unloaded[uniqueID]) then
+			nut.plugin.list[uniqueID] = nut.plugin.unloaded[uniqueID]
+			nut.plugin.unloaded[uniqueID] = nil
+		else
+			return false
+		end
+	elseif (plugin) then
 		if (plugin.onUnload) then
 			plugin:onUnload()
 		end
-	nut.plugins.list[uniqueID] = nil
+
+		nut.plugin.unloaded[uniqueID] = nut.plugin.list[uniqueID]
+		nut.plugin.list[uniqueID] = nil
+	else
+		return false
+	end
+
+	if (SERVER and !noSave) then
+		local status
+
+		if (state) then
+			status = true
+		end
+
+		local unloaded = nut.data.get("unloaded", {}, true, true)
+			unloaded[uniqueID] = status
+		nut.data.set("unloaded", unloaded, true, true)
+	end
 
 	hook.Run("PluginUnloaded", uniqueID)
+
+	return true
 end
 
 if (SERVER) then

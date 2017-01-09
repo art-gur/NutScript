@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 -- Variables for door data.
 local variables = {
 	-- Whether or not the door will be disabled.
@@ -24,7 +9,9 @@ local variables = {
 	-- If the door is unownable.
 	"noSell",
 	-- The faction that owns a door.
-	"faction"
+	"faction",
+	-- Whether or not the door will be hidden.
+	"hidden"
 }
 
 function PLUGIN:callOnDoorChildren(entity, callback)
@@ -157,11 +144,15 @@ function PLUGIN:CanPlayerUseDoor(client, entity)
 	if (entity:getNetVar("disabled")) then
 		return false
 	end
+end
 
-	local faction = entity:getNetVar("faction")
+-- Whether or not a player a player has any abilities over the door, such as locking.
+function PLUGIN:CanPlayerAccessDoor(client, door, access)
+	local faction = door:getNetVar("faction")
 
-	if (faction and client:Team() != faction) then
-		return false
+	-- If the door has a faction set which the client is a member of, allow access.
+	if (faction and client:Team() == faction) then
+		return true
 	end
 end
 
@@ -177,9 +168,15 @@ function PLUGIN:ShowTeam(client)
 	local trace = util.TraceLine(data)
 	local entity = trace.Entity
 
-	if (IsValid(entity) and entity:isDoor()) then
+	if (IsValid(entity) and entity:isDoor() and !entity:getNetVar("faction")) then
 		if (entity:checkDoorAccess(client, DOOR_TENANT)) then
-			netstream.Start(client, "doorMenu", entity, entity.nutAccess)
+			local door = entity
+
+			if (IsValid(door.nutParent)) then
+				door = door.nutParent
+			end
+
+			netstream.Start(client, "doorMenu", door, door.nutAccess, entity)
 		elseif (!IsValid(entity:getNetVar("owner"))) then
 			nut.command.run(client, "doorbuy")
 		else

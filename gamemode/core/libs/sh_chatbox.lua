@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 nut.chat = nut.chat or {}
 nut.chat.classes = nut.char.classes or {}
 
@@ -43,7 +28,13 @@ function nut.chat.register(chatType, data)
 	-- Allow players to use this chat type by default.
 	if (!data.onCanSay) then
 		data.onCanSay = function(speaker, text)
-			return (!data.deadChat and speaker:Alive() or true)
+			if (!data.deadCanChat and !speaker:Alive()) then
+				speaker:notifyLocalized("noPerm")
+
+				return false
+			end
+
+			return true
 		end
 	end
 
@@ -106,7 +97,7 @@ function nut.chat.parse(client, message, noSend)
 		if (type(v.prefix) == "table") then
 			for _, prefix in ipairs(v.prefix) do
 				-- Checking if the start of the message has the prefix.
-				if (message:sub(1, #prefix + (noSpaceAfter and 0 or 1)) == prefix..(noSpaceAfter and "" or " ")) then
+				if (message:sub(1, #prefix + (noSpaceAfter and 0 or 1)):lower() == prefix..(noSpaceAfter and "" or " "):lower()) then
 					isChosen = true
 					chosenPrefix = prefix..(v.noSpaceAfter and "" or " ")
 
@@ -115,7 +106,7 @@ function nut.chat.parse(client, message, noSend)
 			end
 		-- Otherwise the prefix itself is checked.
 		elseif (type(v.prefix) == "string") then
-			isChosen = message:sub(1, #v.prefix + (noSpaceAfter and 1 or 0)) == v.prefix..(noSpaceAfter and "" or " ")
+			isChosen = message:sub(1, #v.prefix + (noSpaceAfter and 1 or 0)):lower() == v.prefix..(noSpaceAfter and "" or " "):lower()
 			chosenPrefix = v.prefix..(v.noSpaceAfter and "" or " ")
 		end
 
@@ -136,6 +127,10 @@ function nut.chat.parse(client, message, noSend)
 		end
 	end
 
+	if (!message:find("%S")) then
+		return
+	end
+	
 	-- Only send if needed.
 	if (SERVER and !noSend) then
 		-- Send the correct chat type out so other player see the message.
@@ -153,21 +148,21 @@ if (SERVER) then
 		local class = nut.chat.classes[chatType]
 
 		if (class and class.onCanSay(speaker, text) != false) then
-			if (class.onCanHear) then
+			if (class.onCanHear and !receivers) then
 				receivers = {}
 
 				for k, v in ipairs(player.GetAll()) do
-					if (class.onCanHear(speaker, v) != false) then
+					if (v:getChar() and class.onCanHear(speaker, v) != false) then
 						receivers[#receivers + 1] = v
 					end
 				end
 
 				if (#receivers == 0) then
-					receivers = nil
+					return
 				end
 			end
 
-			netstream.Start(receivers, "cMsg", speaker, chatType, text, anonymous)
+			netstream.Start(receivers, "cMsg", speaker, chatType, hook.Run("PlayerMessageSend", speaker, chatType, text, anonymous, receivers) or text, anonymous)
 		end
 	end
 else
@@ -212,7 +207,8 @@ do
 			onCanHear = nut.config.get("chatRange", 280),
 			prefix = {"/me", "/action"},
 			font = "nutChatFontItalics",
-			filter = "actions"
+			filter = "actions",
+			deadCanChat = true
 		})
 
 		-- Actions and such.
@@ -223,7 +219,8 @@ do
 			onCanHear = nut.config.get("chatRange", 280),
 			prefix = {"/it"},
 			font = "nutChatFontItalics",
-			filter = "actions"
+			filter = "actions",
+			deadCanChat = true
 		})
 
 		-- Whisper chat.
@@ -263,7 +260,7 @@ do
 
 					-- Use this method of checking time in case the oocDelay config changes.
 					if (lastOOC <= delay) then
-						speaker:notify(L("oocDelay", speaker, delay - math.ceil(lastOOC)))
+						speaker:notifyLocalized("oocDelay", delay - math.ceil(lastOOC))
 
 						return false
 					end
@@ -309,7 +306,7 @@ do
 
 					-- Use this method of checking time in case the oocDelay config changes.
 					if (lastLOOC <= delay) then
-						speaker:notify(L("loocDelay", speaker, delay - math.ceil(lastLOOC)))
+						speaker:notifyLocalized("loocDelay", delay - math.ceil(lastLOOC))
 
 						return false
 					end
@@ -326,22 +323,25 @@ do
 			noSpaceAfter = true,
 			filter = "ooc"
 		})
+
+		-- Roll information in chat.
+		nut.chat.register("roll", {
+			format = "%s has rolled %s.",
+			color = Color(155, 111, 176),
+			filter = "actions",
+			font = "nutChatFontItalics",
+			onCanHear = nut.config.get("chatRange", 280),
+			deadCanChat = true
+		})
 	end)
 end
 
--- Roll information in chat.
-nut.chat.register("roll", {
-	format = "%s has rolled %s.",
-	color = Color(155, 111, 176),
-	filter = "actions",
-	font = "nutChatFontItalics"
-})
-
 -- Private messages between players.
 nut.chat.register("pm", {
-	format = "%s: %s.",
+	format = "[PM] %s: %s.",
 	color = Color(249, 211, 89),
-	filter = "pm"
+	filter = "pm",
+	deadCanChat = true
 })
 
 -- Global events.

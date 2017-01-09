@@ -1,21 +1,8 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 ENT.Type = "anim"
 ENT.PrintName = "Vendor"
-ENT.Spawnable = false
+ENT.Category = "NutScript"
+ENT.Spawnable = true
+ENT.AdminOnly = true
 
 function ENT:Initialize()
 	if (SERVER) then
@@ -25,18 +12,16 @@ function ENT:Initialize()
 		self:DrawShadow(true)
 		self:SetSolid(SOLID_BBOX)
 		self:PhysicsInit(SOLID_BBOX)
-		self:setNetVar("name", "John Doe")
 
 		self.items = {}
+		self.messages = {}
 		self.factions = {}
 		self.classes = {}
-		self.money = 0
-		self.messages = {
-			welcome = "vendorWelcome",
-			noSell = "vendorNoSell",
-			finish = "vendorFinish"
-		}
-		self.stocks = {}
+
+		self:setNetVar("name", "John Doe")
+		self:setNetVar("desc", "")
+
+		self.receivers = {}
 
 		local physObj = self:GetPhysicsObject()
 
@@ -46,7 +31,104 @@ function ENT:Initialize()
 		end
 	end
 
-	self:setAnim()
+	timer.Simple(1, function()
+		if (IsValid(self)) then
+			self:setAnim()
+		end
+	end)
+end
+
+function ENT:canAccess(client)
+	if (client:IsAdmin()) then
+		return true
+	end
+
+	local allowed = false
+	local uniqueID = nut.faction.indices[client:Team()].uniqueID
+
+	if (self.factions and table.Count(self.factions) > 0) then
+		if (self.factions[uniqueID]) then
+			allowed = true
+		else
+			return false
+		end
+	end
+
+	if (allowed and self.classes and table.Count(self.classes) > 0) then
+		local class = nut.class.list[client:getChar():getClass()]
+		local uniqueID = class and class.uniqueID
+
+		if (!self.classes[uniqueID]) then
+			return false
+		end
+	end
+
+	return true
+end
+
+function ENT:getStock(uniqueID)
+	if (self.items[uniqueID] and self.items[uniqueID][VENDOR_MAXSTOCK]) then
+		return self.items[uniqueID][VENDOR_STOCK] or 0, self.items[uniqueID][VENDOR_MAXSTOCK]
+	end
+end
+
+function ENT:getPrice(uniqueID, selling)
+	local price = nut.item.list[uniqueID] and self.items[uniqueID] and self.items[uniqueID][VENDOR_PRICE] or nut.item.list[uniqueID].price or 0
+
+	if (selling) then
+		price = math.floor(price * (self.scale or 0.5))
+	end
+
+	return price
+end
+
+function ENT:canSellToPlayer(client, uniqueID)
+	local data = self.items[uniqueID]
+
+	if (!data or !client:getChar() or !nut.item.list[uniqueID]) then
+		return false
+	end
+
+	if (data[VENDOR_MODE] == VENDOR_BUYONLY) then
+		return false
+	end
+
+	if (!client:getChar():hasMoney(self:getPrice(uniqueID))) then
+		return false
+	end
+
+	if (data[VENDOR_STOCK] and data[VENDOR_STOCK] < 1) then
+		return false
+	end
+
+	return true
+end
+
+function ENT:canBuyFromPlayer(client, uniqueID)
+	local data = self.items[uniqueID]
+
+	if (!data or !client:getChar() or !nut.item.list[uniqueID]) then
+		return false
+	end
+
+	if (data[VENDOR_MODE] != VENDOR_SELLONLY) then
+		return false
+	end
+
+	if (!self:hasMoney(data[VENDOR_PRICE] or nut.item.list[uniqueID].price or 0)) then
+		return false
+	end
+
+	return true
+end
+
+function ENT:hasMoney(amount)
+	-- Vendor not using money system so they can always afford it.
+	if (!self.money) then
+		return true
+	end
+	
+	return self.money >= amount
 end
 
 function ENT:setAnim()
@@ -59,7 +141,117 @@ function ENT:setAnim()
 	self:ResetSequence(4)
 end
 
-if (CLIENT) then
+if (SERVER) then
+	local PLUGIN = PLUGIN
+
+	function ENT:SpawnFunction(client, trace)
+		local angles = (trace.HitPos - client:GetPos()):Angle()
+		angles.r = 0
+		angles.p = 0
+		angles.y = angles.y + 180
+
+		local entity = ents.Create("nut_vendor")
+		entity:SetPos(trace.HitPos)
+		entity:SetAngles(angles)
+		entity:Spawn()
+
+		PLUGIN:saveVendors()
+		
+		return entity
+	end
+
+	function ENT:Use(activator)
+		if (!self:canAccess(activator) or hook.Run("CanPlayerUseVendor", activator) == false) then
+			if (self.messages[VENDOR_NOTRADE]) then
+				activator:ChatPrint(self:getNetVar("name")..": "..self.messages[VENDOR_NOTRADE])
+			end
+
+			return
+		end
+
+		self.receivers[#self.receivers + 1] = activator
+
+		if (self.messages[VENDOR_WELCOME]) then
+			activator:ChatPrint(self:getNetVar("name")..": "..self.messages[VENDOR_WELCOME])
+		end
+			
+		local items = {}
+
+		-- Only send what is needed.
+		for k, v in pairs(self.items) do
+			if (table.Count(v) > 0 and (activator:IsAdmin() or v[VENDOR_MODE])) then
+				items[k] = v
+			end
+		end
+
+		self.scale = self.scale or 0.5
+
+		local data = {}
+		data[1] = items
+		data[2] = self.money
+		data[3] = self.scale
+
+		if (activator:IsAdmin()) then
+			data[4] = self.messages
+			data[5] = self.factions
+			data[6] = self.classes
+		end
+
+		activator.nutVendor = self
+		netstream.Start(activator, "vendorOpen", self:EntIndex(), unpack(data))
+	end
+
+	function ENT:setMoney(value)
+		self.money = value
+
+		netstream.Start(self.receivers, "vendorMoney", value)
+	end
+
+	function ENT:giveMoney(value)
+		if (self.money) then
+			self:setMoney(self:getMoney() + value)
+		end
+	end
+
+	function ENT:takeMoney(value)
+		if (self.money) then
+			self:giveMoney(-value)
+		end
+	end
+
+	function ENT:setStock(uniqueID, value)
+		if (!self.items[uniqueID][VENDOR_MAXSTOCK]) then
+			return
+		end
+
+		self.items[uniqueID] = self.items[uniqueID] or {}
+		self.items[uniqueID][VENDOR_STOCK] = math.min(value, self.items[uniqueID][VENDOR_MAXSTOCK])
+
+		netstream.Start(self.receivers, "vendorStock", uniqueID, value)
+	end
+
+	function ENT:addStock(uniqueID, value)
+		if (!self.items[uniqueID][VENDOR_MAXSTOCK]) then
+			return
+		end
+
+		self:setStock(uniqueID, self:getStock(uniqueID) + (value or 1))
+	end
+
+	function ENT:takeStock(uniqueID, value)
+		if (!self.items[uniqueID][VENDOR_MAXSTOCK]) then
+			return
+		end
+		
+		self:addStock(uniqueID, -(value or 1))
+	end
+
+	function ENT:OnRemove()
+		if (!nut.shuttingDown and !self.nutIsSafe) then
+			PLUGIN:saveVendors()
+		end
+	end
+else
 	function ENT:createBubble()
 		self.bubble = ClientsideModel("models/extras/info_speech.mdl", RENDERGROUP_OPAQUE)
 		self.bubble:SetPos(self:GetPos() + Vector(0, 0, 84))
@@ -86,7 +278,11 @@ if (CLIENT) then
 			self.bubble:Remove()
 		elseif (!IsValid(self.bubble) and !noBubble) then
 			self:createBubble()
+		end
 
+		if ((self.nextAnimCheck or 0) < CurTime()) then
+			self:setAnim()
+			self.nextAnimCheck = CurTime() + 60
 		end
 
 		self:SetNextClientThink(CurTime() + 0.25)
@@ -119,172 +315,8 @@ if (CLIENT) then
 			drawText(desc, x, y + 16, colorAlpha(color_white, alpha), 1, 1, "nutSmallFont", alpha * 0.65)
 		end
 	end
-else
-	function ENT:setMoney(value)
-		if (value) then
-			value = math.max(tonumber(value) or 0, 0)
-		end
-
-		local recipient = {}
-
-		for k, v in ipairs(player.GetAll()) do
-			if (v.nutVendor == self) then
-				recipient[#recipient + 1] = v
-			end
-		end
-
-		if (#recipient > 0) then
-			netstream.Start(recipient, "vendorMoney", value)
-		end
-
-		self.money = value
-	end
-
-	function ENT:giveMoney(value)
-		if (value == 0) then
-			return
-		end
-
-		if (self.money) then
-			self:setMoney(self.money + value)
-		end
-	end
-
-	function ENT:takeMoney(value)
-		self:giveMoney(-value)
-	end
-
-	function ENT:canAccess(client)
-		if (client:IsAdmin()) then
-			return true
-		end
-
-		local teamID = client:Team()
-
-		if (table.Count(self.factions) > 0 and !self.factions[teamID]) then
-			return false
-		end
-
-		local allowed = false
-		local count = 0
-		local classID = client:getChar():getClass()
-
-		for k, v in ipairs(nut.class.list) do
-			if (v.faction == teamID) then
-				count = count + 1
-
-				if (classID == k) then
-					allowed = true
-				end
-			end
-		end
-
-		if (count > 0 and !allowed) then
-			return false
-		end
-		
-		if (hook.Run("CanPlayerUseVendor", client, self) == false) then
-			return false
-		end
-
-		if (client:GetPos():Distance(self:GetPos()) > 96) then
-			return false
-		end
-
-		if (table.Count(self.factions) > 0 and !self.factions[client:Team()]) then
-			return false
-		end
-
-		if (table.Count(self.classes) > 0 and !self.classes[client:getChar():getClass()]) then
-			return false
-		end
-
-		return true
-	end
-
-	function ENT:canBuyItem(client, uniqueID, ignoreStock)
-		if (!self.items[uniqueID]) then
-			return
-		end
-
-		if (hook.Run("CanVendorSellItem", client, self, uniqueID) == false) then
-			return false
-		end
-
-		if (!ignoreStock and self.stocks and self.stocks[uniqueID] and self.stocks[uniqueID][1] and self.stocks[uniqueID][1] < 1) then
-			return false
-		end
-
-		return true
-	end
-
-	function ENT:canSellItem(client, uniqueID)
-		local itemTable = nut.item.list[uniqueID]
-
-		if (!itemTable) then
-			return false
-		end
-
-		if (hook.Run("CanVendorBuyItem", client, self, uniqueID) == false) then
-			return false
-		end
-
-		return self.items[uniqueID] != nil
-	end
-
-	function ENT:Use(activator)
-		if (self:canAccess(activator) == false) then
-			local message = self.messages.noSell
-
-			if (message and message:find("%S")) then
-				activator:ChatPrint(message)
-			end
-
-			return
-		end
-
-		local money = self.money
-
-		local items = {}
-			for k, v in pairs(self.items) do
-				if (self:canBuyItem(activator, k, true)) then
-					items[k] = v
-				end
-			end
-
-			local adminData
-
-			if (activator:IsAdmin()) then
-				local factions, classes = self.factions, self.classes
-
-				if (table.Count(factions) == 0) then
-					factions = nil
-				end
-
-				if (table.Count(classes) == 0) then
-					classes = nil
-				end
-
-				if (factions or classes) then
-					adminData = {
-						faction = factions,
-						class = classes
-					}
-				end
-			end
-		netstream.Start(activator, "vendorUse", self, items, money, self.stocks, adminData)
-
-		activator.nutVendor = self
-		activator:ChatPrint(self:getNetVar("name")..": "..L(self.messages.welcome, activator))
-	end
-
-	function ENT:OnRemove()
-		if (!nut.shuttingDown) then
-			nut.plugin.list.vendor:saveVendors()
-		end
-	end
 end
 
-function ENT:hasMoney(value)
-	return self.money >= value
+function ENT:getMoney()
+	return self.money
 end

@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 AddCSLuaFile()
 
 ENT.Type = "anim"
@@ -39,8 +24,10 @@ if (SERVER) then
 		local itemTable = nut.item.instances[itemID]
 
 		if (itemTable) then
+			local model = itemTable.onGetDropModel and itemTable:onGetDropModel(self) or itemTable.model
+
 			self:SetSkin(itemTable.skin or 0)
-			self:SetModel(itemTable.model)
+			self:SetModel(model)
 			self:PhysicsInit(SOLID_VPHYSICS)
 			self:SetSolid(SOLID_VPHYSICS)
 			self:setNetVar("id", itemTable.uniqueID)
@@ -62,6 +49,10 @@ if (SERVER) then
 			if (IsValid(physObj)) then
 				physObj:EnableMotion(true)
 				physObj:Wake()
+			end
+
+			if (itemTable.onEntityCreated) then
+				itemTable:onEntityCreated(self)
 			end
 		end
 	end
@@ -89,26 +80,31 @@ else
 		local itemTable = self.getItemTable(self)
 
 		if (itemTable) then
+			local oldData = itemTable.data
+			itemTable.data = self.getNetVar(self, "data", {})
+			itemTable.entity = self
+
 			local position = toScreen(self.LocalToWorld(self, self.OBBCenter(self)))
 			local x, y = position.x, position.y
 			local description = itemTable.getDesc(itemTable)
 
 			if (description != self.desc) then
 				self.desc = description
-				self.lines, self.offset = nut.util.wrapText(description, ScrW() / 3, "nutSmallFont")
+				self.lines, self.offset = nut.util.wrapText(description, ScrW() * 0.7, "nutSmallFont")
 				self.offset = self.offset * 0.5
 			end
+			
+			nut.util.drawText(L(itemTable.name), x, y, colorAlpha(nut.config.get("color"), alpha), 1, 1, nil, alpha * 0.65)
 
-			itemTable.entity = self
-				nut.util.drawText(itemTable.name, x, y, colorAlpha(nut.config.get("color"), alpha), 1, 1, nil, alpha * 0.65)
+			local lines = self.lines
+			local offset = self.offset
 
-				local lines = self.lines
-				local offset = self.offset
+			for i = 1, #lines do
+				nut.util.drawText(lines[i], x, y + (i * 16), colorAlpha(color_white, alpha), 1, 1, "nutSmallFont", alpha * 0.65)
+			end
 
-				for i = 1, #lines do
-					nut.util.drawText(lines[i], x, y + (i * 16), colorAlpha(color_white, alpha), 1, 1, "nutSmallFont", alpha * 0.65)
-				end
 			itemTable.entity = nil
+			itemTable.data = oldData
 		end		
 	end
 

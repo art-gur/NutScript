@@ -1,17 +1,4 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
 
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
 NAME = "English"
 
 LANGUAGE = {
@@ -64,7 +51,7 @@ LANGUAGE = {
 	notAllowed = "Sorry, you are not allowed to do this.",
 	itemNoExist = "Sorry, the item that you requested does not exist.",
 	cmdNoExist = "Sorry, that command does not exist.",
-	plyNoExist = "Sorry, a player could not be found by that name.",
+	plyNoExist = "Sorry, a matching player could not be found.",
 	cfgSet = "%s has set \"%s\" to %s.",
 	drop = "Drop",
 	dropTip = "Drops this item from your inventory.",
@@ -79,6 +66,8 @@ LANGUAGE = {
 	dNotAllowedToOwn = "You are not allowed to own this door.",
 	dSetDisabled = "You have made this door disabled.",
 	dSetNotDisabled = "You have made this door no longer disabled.",
+	dSetHidden = "You have made this door hidden.",
+	dSetNotHidden = "You have made this door no longer hidden.",
 	dSetParentDoor = "You have set this door as your parent door.",
 	dCanNotSetAsChild = "You can not set the parent door as a child.",
 	dAddChildDoor = "You have added a this door as a child.",
@@ -97,7 +86,11 @@ LANGUAGE = {
 	invalidArg = "You have provided an invalid value for argument #%s.",
 	invalidFaction = "The faction you provided could not be found.",
 	flagGive = "%s has given %s '%s' flags.",
+	flagGiveTitle = "Give Flags",
+	flagGiveDesc = "Give the following flags to the player.",
 	flagTake = "%s has taken '%s' flags from %s.",
+	flagTakeTitle = "Take Flags",
+	flagTakeDesc = "Remove the following flags from the player.",
 	flagNoMatch = "You must have \"%s\" Flag(s) to do this action.",
 	textAdded = "You have added a text.",
 	textRemoved = "You have removed %s text(s).",
@@ -106,6 +99,9 @@ LANGUAGE = {
 	businessSell = "You sold %s for %s.",
 	cChangeModel = "%s changed %s's model to %s.",
 	cChangeName = "%s changed %s's name to %s.",
+	cChangeSkin = "%s changed %s's skin to %s.",
+	cChangeGroups = "%s changed %s's \"%s\" bodygroup to %s.",
+	cChangeFaction = "%s has transfered %s to the %s faction.",
 	playerCharBelonging = "This object is your other character's belonging.",
 	business = "Business",
 	invalidFaction = "You have provided an invalid faction.",
@@ -205,6 +201,7 @@ LANGUAGE = {
 	youreDead = "You are Dead",
 	injMajor = "Seems critically injured.",
 	injLittle = "Seems injured",
+	toggleObserverTP = "Toggle Observer teleport",
 	toggleESP = "Toggle Admin ESP",
 	chgName = "Change Name",
 	chgNameDesc = "Enter the character's new name below.",
@@ -214,5 +211,24 @@ LANGUAGE = {
 	useTip = "Uses the item.",
 	equipTip = "Equips the item.",
 	unequipTip = "Unequips the item.",
-	consumables = "Consumables"
+	consumables = "Consumables",
+	plyNotValid = "You are not looking at a valid player.",
+	restricted = "You have been restrained.",
+	viewProfile = "View Steam Profile",
+	salary = "You have received %s from your salary.",
+	noRecog = "You do not recognize this person.",
+	curTime = "The current time is %s.",
+	vendorEditor = "Vendor Editor",
+	edit = "Edit",
+	disable = "Disable",
+	vendorPriceReq = "Enter the new price for this item.",
+	vendorEditCurStock = "Edit Current Stock",
+	you = "You",
+	vendorSellScale = "Sell price scale",
+	vendorNoTrade = "You are not able to trade with this vendor.",
+	vendorNoMoney = "This vendor can not afford that item.",
+	vendorNoStock = "This vendor does not have that item in stock.",
+	contentTitle = "NutScript Content Missing",
+	contentWarning = "You do not have the NutScript content mounted. This may result in certain features missing.\nWould you like to open the Workshop page for the NutScript content?",
+	flags = "Flags"
 }

@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 PLUGIN.name = "Storage"
 PLUGIN.author = "Chessnut"
 PLUGIN.desc = "Provides the ability to store items."
@@ -44,10 +29,8 @@ if (SERVER) then
 			storage:PhysicsInit(SOLID_VPHYSICS)
 
 			nut.item.newInv(0, "st"..data.name, function(inventory)
-				storage:setInventory(inventory)
-
-				function inventory:onCanTransfer(client, oldX, oldY, x, y, newInvID)
-					return hook.Run("StorageCanTransfer", inventory, client, oldX, oldY, x, y, newInvID)
+				if (IsValid(storage)) then
+					storage:setInventory(inventory)
 				end
 			end)
 
@@ -97,21 +80,20 @@ if (SERVER) then
 					storage:SetModel(v[4])
 					storage:SetSolid(SOLID_VPHYSICS)
 					storage:PhysicsInit(SOLID_VPHYSICS)
+					
 					if (v[5]) then
 						storage.password = v[5]
 						storage:setNetVar("locked", true)
 					end
 					
 					nut.item.restoreInv(v[3], data2.width, data2.height, function(inventory)
-						function inventory:onCanTransfer(client, oldX, oldY, x, y, newInvID)
-							print(self)
-							return hook.Run("StorageCanTransfer", inventory, client, oldX, oldY, x, y, newInvID)
+						if (IsValid(storage)) then
+							storage:setInventory(inventory)
 						end
-
-						storage:setNetVar("id", v[3])
 					end)
 
 					local physObject = storage:GetPhysicsObject()
+
 					if (physObject) then
 						physObject:EnableMotion()
 					end
@@ -137,7 +119,7 @@ if (SERVER) then
 			if (entity.password and entity.password == password) then
 				entity:OpenInv(client)
 			else
-				client:notify(L("wrongPassword", client))
+				client:notifyLocalized("wrongPassword")
 			end
 		end
 	end)
@@ -214,14 +196,14 @@ nut.command.add("storagelock", {
 			if (password != "") then
 				ent:setNetVar("locked", true)
 				ent.password = password
-				client:notify(L("storPass", client, password))
+				client:notifyLocalized("storPass", password)
 			else
 				ent:setNetVar("locked", nil)
 				ent.password = nil
-				client:notify(L("storPassRmv", client))
+				client:notifyLocalized("storPassRmv")
 			end
 		else
-			client:notify(L("invalid", client, "Entity"))
+			client:notifyLocalized("invalid", "Entity")
 		end
 	end
 })

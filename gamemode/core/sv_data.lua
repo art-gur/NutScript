@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 nut.data = nut.data or {}
 nut.data.stored = nut.data.stored or {}
 
@@ -36,6 +21,7 @@ function nut.data.set(key, value, global, ignoreMap)
 	
 	-- Cache the data value here.
 	nut.data.stored[key] = value
+
 	return path
 end
 
@@ -57,11 +43,16 @@ function nut.data.get(key, default, global, ignoreMap, refresh)
 
 	if (contents and contents != "") then
 		-- Decode the contents and return the data.
-		local decoded = pon.decode(contents)
-		local value = decoded[1]
+		local status, decoded = pcall(pon.decode, contents)
 
-		if (value != nil) then
-			return value
+		if (status and decoded) then
+			local value = decoded[1]
+
+			if (value != nil) then
+				return value
+			else
+				return default
+			end
 		else
 			return default
 		end
@@ -87,3 +78,8 @@ function nut.data.delete(key, global, ignoreMap)
 		return false
 	end
 end
+
+timer.Create("nutSaveData", 600, 0, function()
+	hook.Run("SaveData")
+	hook.Run("PersistenceSave")
+end)

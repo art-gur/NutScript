@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 local NUT_CVAR_LOWER2 = CreateClientConVar("nut_usealtlower", "0", true)
 
 function GM:ForceDermaSkin()
@@ -32,6 +17,7 @@ end
 function GM:ScoreboardHide()
 	if (IsValid(nut.gui.score)) then
 		nut.gui.score:SetVisible(false)
+		CloseDermaMenus()
 	end
 
 	gui.EnableScreenClicker(false)
@@ -46,25 +32,25 @@ function GM:LoadFonts(font)
 
 	surface.CreateFont("nutTitleFont", {
 		font = font,
-		size = 72,
+		size = ScreenScale(30),
 		weight = 1000
 	})
 
 	surface.CreateFont("nutSubTitleFont", {
 		font = font,
-		size = 36,
+		size = ScreenScale(18),
 		weight = 500
 	})
 
 	surface.CreateFont("nutMenuButtonFont", {
 		font = font,
-		size = 36,
+		size = ScreenScale(14),
 		weight = 1000
 	})
 
 	surface.CreateFont("nutMenuButtonLightFont", {
 		font = font,
-		size = 36,
+		size = ScreenScale(14),
 		weight = 200
 	})
 
@@ -133,26 +119,26 @@ function GM:LoadFonts(font)
 
 	surface.CreateFont("nutChatFont", {
 		font = font,
-		size = 17,
+		size = math.max(ScreenScale(7), 17),
 		weight = 200
 	})
 
 	surface.CreateFont("nutChatFontItalics", {
 		font = font,
-		size = 17,
+		size = math.max(ScreenScale(7), 17),
 		weight = 200,
 		italic = true
 	})
 
 	surface.CreateFont("nutSmallFont", {
 		font = font,
-		size = 17,
+		size = math.max(ScreenScale(6), 17),
 		weight = 500
 	})
 
 	surface.CreateFont("nutSmallBoldFont", {
 		font = font,
-		size = 20,
+		size = math.max(ScreenScale(8), 20),
 		weight = 800
 	})
 
@@ -305,15 +291,15 @@ function GM:InitializedConfig()
 end
 
 function GM:InitPostEntity()
-	nut.joinTime = CurTime()
+	nut.joinTime = RealTime() - 0.9716
 end
 
 local vignette = nut.util.getMaterial("nutscript/gui/vignette.png")
 local vignetteAlphaGoal = 0
 local vignetteAlphaDelta = 0
-
 local blurGoal = 0
 local blurDelta = 0
+local hasVignetteMaterial = vignette != "___error"
 
 timer.Create("nutVignetteChecker", 1, 0, function()
 	local client = LocalPlayer()
@@ -359,6 +345,8 @@ function GM:CalcView(client, origin, angles, fov)
 			return view
 		end
 	end
+
+	return self.BaseClass:CalcView(client, origin, angles, fov)
 end
 
 local nextUpdate = 0
@@ -367,18 +355,26 @@ local lastEntity
 local mathApproach = math.Approach
 local surface = surface
 local hookRun = hook.Run
+local toScreen = FindMetaTable("Vector").ToScreen
 
 function GM:HUDPaint()
 	local localPlayer = LocalPlayer()
+
+	if (!localPlayer.getChar(localPlayer)) then
+		return
+	end
+	
 	local realTime = RealTime()
 	local frameTime = FrameTime()
 	local scrW, scrH = surface.ScreenWidth(), surface.ScreenHeight()
 
-	vignetteAlphaDelta = mathApproach(vignetteAlphaDelta, vignetteAlphaGoal, frameTime * 30)
+	if (hasVignetteMaterial) then
+		vignetteAlphaDelta = mathApproach(vignetteAlphaDelta, vignetteAlphaGoal, frameTime * 30)
 
-	surface.SetDrawColor(0, 0, 0, 175 + vignetteAlphaDelta)
-	surface.SetMaterial(vignette)
-	surface.DrawTexturedRect(0, 0, scrW, scrH)
+		surface.SetDrawColor(0, 0, 0, 175 + vignetteAlphaDelta)
+		surface.SetMaterial(vignette)
+		surface.DrawTexturedRect(0, 0, scrW, scrH)
+	end
 
 	if (localPlayer.getChar(localPlayer) and nextUpdate < realTime) then
 		nextUpdate = realTime + 0.5
@@ -404,7 +400,13 @@ function GM:HUDPaint()
 			end
 
 			if (alpha > 0) then
-				if (entity.onDrawEntityInfo) then
+				local client = entity.getNetVar(entity, "player")
+
+				if (IsValid(client)) then
+					local position = toScreen(entity.LocalToWorld(entity, entity.OBBCenter(entity)))
+
+					hookRun("DrawEntityInfo", client, alpha, position)
+				elseif (entity.onDrawEntityInfo) then
 					entity.onDrawEntityInfo(entity, alpha)
 				else
 					hookRun("DrawEntityInfo", entity, alpha)
@@ -466,6 +468,10 @@ function GM:HUDPaint()
 		end
 	end
 
+	if (localPlayer.getLocalVar(localPlayer, "restricted") and !localPlayer.getLocalVar(localPlayer, "restrictNoMsg")) then
+		nut.util.drawText(L"restricted", scrW * 0.5, scrH * 0.33, nil, 1, 1, "nutBigFont")
+	end
+
 	nut.menu.drawAll()
 	nut.bar.drawAll()
 	nut.hud.drawAll(false)
@@ -476,7 +482,7 @@ function GM:PostDrawHUD()
 end
 
 function GM:ShouldDrawEntityInfo(entity)
-	if (entity:IsPlayer()) then
+	if (entity:IsPlayer() or IsValid(entity:getNetVar("player"))) then
 		if (entity == LocalPlayer() and !LocalPlayer():ShouldDrawLocalPlayer()) then
 			return false
 		end
@@ -502,36 +508,52 @@ function GM:GetInjuredText(client)
 	end
 end
 
-local toScreen = FindMetaTable("Vector").ToScreen
 local colorAlpha = ColorAlpha
 local teamGetColor = team.GetColor
 local drawText = nut.util.drawText
 
-function GM:DrawCharInfo(character, x, y, alpha)
-	return x, y
+function GM:DrawCharInfo(client, character, info)
+	local injText, injColor = hookRun("GetInjuredText", client)
+
+	if (injText) then
+		info[#info + 1] = {L(injText), injColor}
+	end
 end
 
-function GM:DrawEntityInfo(entity, alpha)
+local charInfo = {}
+
+function GM:DrawEntityInfo(entity, alpha, position)
 	if (entity.IsPlayer(entity)) then
 		local localPlayer = LocalPlayer()
-		local position = toScreen(entity.GetPos(entity) + (entity.Crouching(entity) and OFFSET_CROUCHING or OFFSET_NORMAL))
 		local character = entity.getChar(entity)
+		
+		position = position or toScreen(entity.GetPos(entity) + (entity.Crouching(entity) and OFFSET_CROUCHING or OFFSET_NORMAL))
 
 		if (character) then
 			local x, y = position.x, position.y
-			local tx, ty = 0, 0
-			tx, ty = drawText(hookRun("GetDisplayedName", entity) or character.getName(character), x, y, colorAlpha(teamGetColor(entity.Team(entity)), alpha), 1, 1, nil, alpha * 0.65)
-			y = y + ty
-			
-			tx, ty = drawText(character.getDesc(character), x, y, colorAlpha(color_white, alpha), 1, 1, "nutSmallFont", alpha * 0.65)
-			y = y + ty
+			local ty = 0
 
-			x, y = hookRun("DrawCharInfo", character, x, y, alpha)
-			
-			local injText, injColor = hookRun("GetInjuredText", entity)
+			charInfo = {}
+			charInfo[1] = {hookRun("GetDisplayedName", entity) or character.getName(character), teamGetColor(entity.Team(entity))}
 
-			if (injText) then
-				drawText(L(injText), x, y, colorAlpha(injColor, alpha), 1, 1, "nutSmallFont", alpha * 0.65)
+			local description = character.getDesc(character)
+
+			if (description != entity.nutDescCache) then
+				entity.nutDescCache = description
+				entity.nutDescLines = nut.util.wrapText(description, ScrW() * 0.7, "nutSmallFont")
+			end
+
+			for i = 1, #entity.nutDescLines do
+				charInfo[#charInfo + 1] = {entity.nutDescLines[i]}
+			end
+
+			hookRun("DrawCharInfo", entity, character, charInfo)
+
+			for i = 1, #charInfo do
+				local info = charInfo[i]
+				
+				_, ty = drawText(info[1], x, y, colorAlpha(info[2] or color_white, alpha), 1, 1, "nutSmallFont")
+				y = y + ty
 			end
 		end
 	end
@@ -567,6 +589,12 @@ function GM:PlayerBindPress(client, bind, pressed)
 		end
 	elseif (bind:find("jump")) then
 		nut.command.send("chargetup")
+	elseif (bind:find("speed") and client:KeyDown(IN_WALK) and pressed) then
+		if (LocalPlayer():Crouching()) then
+			RunConsoleCommand("-duck")
+		else
+			RunConsoleCommand("+duck")
+		end
 	end
 end
 
@@ -587,7 +615,7 @@ function GM:ItemShowEntityMenu(entity)
 		end
 	end
 
-	itemTable.client = LocalPlayer()
+	itemTable.player = LocalPlayer()
 	itemTable.entity = entity
 
 	for k, v in SortedPairs(itemTable.functions) do
@@ -618,7 +646,7 @@ function GM:ItemShowEntityMenu(entity)
 		entity.nutMenuIndex = nut.menu.add(options, entity)
 	end
 
-	itemTable.client = nil
+	itemTable.player = nil
 	itemTable.entity = nil
 end
 
@@ -659,7 +687,7 @@ function GM:SetupQuickMenu(menu)
 		local enabled = NUT_CVAR_LANG:GetString():match(k)
 
 		if (name) then
-			name = name2.." ("..name..")"
+			name = name.." ("..name2..")"
 		else
 			name = name2
 		end
@@ -697,8 +725,8 @@ function GM:SetupQuickMenu(menu)
 end
 
 function GM:ShouldDrawLocalPlayer(client)
-	if (nut.gui.char:IsVisible()) then
-		return true
+	if (IsValid(nut.gui.char) and nut.gui.char:IsVisible()) then
+		return false
 	end
 end
 
@@ -718,6 +746,7 @@ function GM:OnCharInfoSetup(infoPanel)
 				weapModel:AddEffects(EF_BONEMERGE)
 				weapModel:SetSkin(weapon:GetSkin())
 				weapModel:SetColor(weapon:GetColor())
+				weapModel:SetNoDraw(true)
 				ent.weapon = weapModel
 
 				local act = ACT_MP_STAND_IDLE
@@ -726,12 +755,12 @@ function GM:OnCharInfoSetup(infoPanel)
 				local tree = nut.anim[class]
 
 				if (tree) then
-					local subClass = "normal"
-					subClass = weapon:GetHoldType()
+					local subClass = weapon.HoldType or weapon:GetHoldType()
 					subClass = HOLDTYPE_TRANSLATOR[subClass] or subClass
 
 					if (tree[subClass] and tree[subClass][act]) then
-						local act2 = tree[subClass][act][1]
+						local branch = tree[subClass][act]
+						local act2 = type(branch) == "table" and branch[1] or branch
 
 						if (type(act2) == "string") then
 							act2 = ent:LookupSequence(act2)
@@ -747,6 +776,14 @@ function GM:OnCharInfoSetup(infoPanel)
 			end
 		end
 	end
+end
+
+function GM:ShowPlayerOptions(client, options)
+	options["viewProfile"] = {"icon16/user.png", function()
+		if (IsValid(client)) then
+			client:ShowProfile()
+		end	
+	end}
 end
 
 function GM:DrawNutModelView(panel, ent)
@@ -825,4 +862,9 @@ function GM:PostPlayerDraw(client)
 			end
 		end
 	end
+end
+
+function GM:ScreenResolutionChanged(oldW, oldH)
+	RunConsoleCommand("fixchatplz")
+	hook.Run("LoadFonts", nut.config.get("font"))
 end

@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 function GM:PlayerNoClip(client)
 	return client:IsAdmin()
 end
@@ -47,17 +32,25 @@ PLAYER_HOLDTYPE_TRANSLATOR["knife"] = "normal"
 PLAYER_HOLDTYPE_TRANSLATOR["duel"] = "normal"
 PLAYER_HOLDTYPE_TRANSLATOR["bugbait"] = "normal"
 
+local getModelClass = nut.anim.getModelClass
+local IsValid = IsValid
+local string = string
+local type = type
+
+local PLAYER_HOLDTYPE_TRANSLATOR = PLAYER_HOLDTYPE_TRANSLATOR
+local HOLDTYPE_TRANSLATOR = HOLDTYPE_TRANSLATOR
+
 function GM:TranslateActivity(client, act)
-	local model = client:GetModel():lower()
-	local class = nut.anim.getModelClass(model)
-	local weapon = client:GetActiveWeapon()
+	local model = string.lower(client.GetModel(client))
+	local class = getModelClass(model)
+	local weapon = client.GetActiveWeapon(client)
 
 	if (class == "player") then
-		if (IsValid(weapon) and !client:isWepRaised() and client:OnGround()) then
-			if (model:find("zombie")) then
+		if (!nut.config.get("wepAlwaysRaised") and IsValid(weapon) and !client.isWepRaised(client) and client.OnGround(client)) then
+			if (string.find(model, "zombie")) then
 				local tree = nut.anim.zombie
 
-				if (model:find("fast")) then
+				if (string.find(model, "fast")) then
 					tree = nut.anim.fastZombie
 				end
 
@@ -66,16 +59,17 @@ function GM:TranslateActivity(client, act)
 				end
 			end
 
-			local holdType = weapon:GetHoldType()
-			local value = PLAYER_HOLDTYPE_TRANSLATOR[holdType] or "passive"
-			local tree = nut.anim.player[value]
+			local holdType = weapon.HoldType or weapon.GetHoldType(weapon)
+			holdType = PLAYER_HOLDTYPE_TRANSLATOR[holdType] or "passive"
+
+			local tree = nut.anim.player[holdType]
 
 			if (tree and tree[act]) then
 				return tree[act]
 			end
 		end
 
-		return self.BaseClass:TranslateActivity(client, act)
+		return self.BaseClass.TranslateActivity(self.BaseClass, client, act)
 	end
 
 	local tree = nut.anim[class]
@@ -83,39 +77,48 @@ function GM:TranslateActivity(client, act)
 	if (tree) then
 		local subClass = "normal"
 
-		if (client:InVehicle() and tree.vehicle) then
-			local vehicle = client:GetVehicle()
-			if (vehicle and IsValid(vehicle)) then
-				local class = vehicle:GetClass()
+		if (client.InVehicle(client)) then
+			local vehicle = client.GetVehicle(client)
+			local class = vehicle:isChair() and "chair" or vehicle:GetClass()
+
+			if (tree.vehicle and tree.vehicle[class]) then
 				local act = tree.vehicle[class][1]
 				local fixvec = tree.vehicle[class][2]
-				local fixang = tree.vehicle[class][3]
+				--local fixang = tree.vehicle[class][3]
 
-				client:ManipulateBonePosition(0, fixvec)
+				if (fixvec) then
+					client.ManipulateBonePosition(client, 0, fixvec)
+				end
 
 				if (type(act) == "string") then
-					client.CalcSeqOverride = client:LookupSequence(act)
+					client.CalcSeqOverride = client.LookupSequence(client, act)
 
 					return
 				else
 					return act
 				end
+			else
+				act = tree.normal[ACT_MP_CROUCH_IDLE][1]
+
+				if (type(act) == "string") then
+					client.CalcSeqOverride = client:LookupSequence(act)
+				end
+
+				return
 			end
-		end
-		
-		if (client:OnGround()) then
-			client:ManipulateBonePosition(0, Vector())
+		elseif (client.OnGround(client)) then
+			client.ManipulateBonePosition(client, 0, vector_origin)
 
 			if (IsValid(weapon)) then
-				subClass = weapon:GetHoldType()
+				subClass = weapon.HoldType or weapon.GetHoldType(weapon)
 				subClass = HOLDTYPE_TRANSLATOR[subClass] or subClass
 			end
 
 			if (tree[subClass] and tree[subClass][act]) then
-				local act2 = tree[subClass][act][client:isWepRaised() and 2 or 1]
+				local act2 = tree[subClass][act][client.isWepRaised(client) and 2 or 1]
 
 				if (type(act2) == "string") then
-					client.CalcSeqOverride = client:LookupSequence(act2)
+					client.CalcSeqOverride = client.LookupSequence(client, act2)
 
 					return
 				end
@@ -135,6 +138,10 @@ function GM:CanPlayerUseBusiness(client, uniqueID)
 		return false
 	end
 
+	if (itemTable.noBusiness) then
+		return false
+	end
+	
 	if (itemTable.factions) then
 		local allowed = false
 
@@ -166,8 +173,8 @@ function GM:CanPlayerUseBusiness(client, uniqueID)
 					break
 				end
 			end
-		elseif (client:getChar():getClass() != itemTable.classes) then
-			allowed = false
+		elseif (client:getChar():getClass() == itemTable.classes) then
+			allowed = true
 		end
 
 		if (!allowed) then
@@ -175,8 +182,8 @@ function GM:CanPlayerUseBusiness(client, uniqueID)
 		end
 	end
 
-	if (itemTable.flags) then
-		if (!client:getChar():hasFlags(itemTable.flags)) then
+	if (itemTable.flag) then
+		if (!client:getChar():hasFlags(itemTable.flag)) then
 			return false
 		end
 	end
@@ -194,7 +201,7 @@ function GM:DoAnimationEvent(client, event, data)
 		local weapon = client:GetActiveWeapon()
 
 		if (IsValid(weapon)) then
-			local holdType = weapon:GetHoldType()
+			local holdType = weapon.HoldType or weapon:GetHoldType()
 			holdType = HOLDTYPE_TRANSLATOR[holdType] or holdType
 
 			local animation = nut.anim[class][holdType]
@@ -236,19 +243,22 @@ function GM:EntityEmitSound(data)
 	end
 end
 
-function GM:CalcMainActivity(client, velocity)
-	local eyeAngles = client:EyeAngles()
-	local yaw = velocity:Angle().yaw
-	local normalized = math.NormalizeAngle(yaw - eyeAngles.y)
+local vectorAngle = FindMetaTable("Vector").Angle
+local normalizeAngle = math.NormalizeAngle
 
-	client:SetPoseParameter("move_yaw", normalized)
+function GM:CalcMainActivity(client, velocity)
+	local eyeAngles = client.EyeAngles(client)
+	local yaw = vectorAngle(velocity)[2]
+	local normalized = normalizeAngle(yaw - eyeAngles[2])
+
+	client.SetPoseParameter(client, "move_yaw", normalized)
 
 	if (CLIENT) then
-		client:SetIK(false)
+		client.SetIK(client, false)
 	end
 
 	local oldSeqOverride = client.CalcSeqOverride
-	local seqIdeal, seqOverride = self.BaseClass:CalcMainActivity(client, velocity)
+	local seqIdeal, seqOverride = self.BaseClass.CalcMainActivity(self.BaseClass, client, velocity)
 	--client.CalcSeqOverride is being -1 after this line.
 
 	return seqIdeal, client.nutForceSeq or oldSeqOverride or client.CalcSeqOverride
@@ -293,7 +303,13 @@ function GM:GetDefaultCharName(client, faction)
 end
 
 function GM:CanPlayerUseChar(client, char)
-	if (char:getData("banned")) then
+	local banned = char:getData("banned")
+
+	if (banned) then
+		if (type(banned) == "number" and banned < os.time()) then
+			return
+		end
+
 		return false, "@charBanned"
 	end
 end
@@ -353,6 +369,7 @@ end
 
 function GM:Move(client, moveData)
 	local char = client:getChar()
+
 	if (char) then
 		if (client:getNetVar("actAng")) then
 			moveData:SetForwardSpeed(0)
@@ -361,21 +378,23 @@ function GM:Move(client, moveData)
 
 		if (client:GetMoveType() == MOVETYPE_WALK and moveData:KeyDown(IN_WALK)) then
 			local mf, ms = 0, 0
+			local speed = client:GetWalkSpeed()
+			local ratio = nut.config.get("walkRatio")
 
 			if (moveData:KeyDown(IN_FORWARD)) then
-				mf = .4
+				mf = ratio
 			elseif (moveData:KeyDown(IN_BACK)) then
-				mf = -.4
+				mf = -ratio
 			end
 
 			if (moveData:KeyDown(IN_MOVELEFT)) then
-				ms = -.4
+				ms = -ratio
 			elseif (moveData:KeyDown(IN_MOVERIGHT)) then
-				ms = .4
+				ms = ratio
 			end
 
-			moveData:SetForwardSpeed(mf * client:GetWalkSpeed()) 
-			moveData:SetSideSpeed(ms * client:GetWalkSpeed()) 
+			moveData:SetForwardSpeed(mf * speed) 
+			moveData:SetSideSpeed(ms * speed) 
 		end
 	end
 end

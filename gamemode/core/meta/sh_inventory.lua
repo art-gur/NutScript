@@ -1,21 +1,4 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
-local _R = debug.getregistry()
-
-local META = _R.Inventory or {}
+local META = nut.meta.inventory or {}
 META.__index = META
 META.slots = META.slots or {}
 META.w = META.w or 4
@@ -91,11 +74,23 @@ function META:printAll()
 	print("------------------------")
 end
 
-function META:setOwner(owner)
-	if (type(owner) == "Player" and owner:getNetVar("charID")) then
-		owner = owner:getNetVar("charID")
+function META:setOwner(owner, fullUpdate)
+	if (type(owner) == "Player" and owner:getNetVar("char")) then
+		owner = owner:getNetVar("char")
 	elseif (type(owner) != "number") then
 		return
+	end
+
+	if (SERVER and fullUpdate) then
+		for k, v in ipairs(player.GetAll()) do
+			if (v:getNetVar("char") == owner) then
+				self:sync(v, true)
+
+				break
+			end
+		end
+
+		nut.db.query("UPDATE nut_inventories SET _charID = "..owner.." WHERE _invID = "..self:getID())
 	end
 
 	self.owner = owner
@@ -221,12 +216,22 @@ function META:getReceiver()
 	end
 end
 
-function META:getItemByID(id)
-	for k, v in pairs(self.slots) do
-		for k2, v2 in pairs(v) do
-			if (v2.id == id) then
-				return k, k2
-			end
+function META:getItemCount(uniqueID, onlyMain)
+	local i = 0
+
+	for k, v in pairs(self:getItems(onlyMain)) do
+		if (v.uniqueID == uniqueID) then
+			i = i + 1
+		end
+	end
+
+	return i
+end
+
+function META:getItemByID(id, onlyMain)
+	for k, v in pairs(self:getItems(onlyMain)) do
+		if (v.id == id) then
+			return v
 		end
 	end
 end
@@ -277,20 +282,16 @@ function META:getBags()
 end
 
 function META:matchData(id, matchData)
-	local x, y = self:getItemByID(id)
+	local item = self:getItemByID(id)
 
-	if (x and y) then
-		local item = self:getItemAt(x, y)
-
-		if (item) then
-			for dataKey, dataVal in pairs(data) do
-				if (itemData[dataKey] != dataVal) then
-					return false
-				end
+	if (item) then
+		for dataKey, dataVal in pairs(data) do
+			if (itemData[dataKey] != dataVal) then
+				return false
 			end
-
-			return true
 		end
+
+		return true
 	end
 end
 
@@ -317,8 +318,8 @@ function META:hasItem(targetID, data)
 end
 
 if (SERVER) then
-	function META:sendSlot(x, y, item)
-		local receiver = self:getReceiver()
+	function META:sendSlot(x, y, item, receiver)
+		receiver = receiver or self:getReceiver()
 		local sendData = item and item.data and table.Count(item.data) > 0 and item.data or nil
 
 		if (type(receiver) == "Player" and IsValid(receiver)) then
@@ -463,4 +464,4 @@ if (SERVER) then
 	end
 end
 
-_R.Inventory = META
+nut.meta.inventory = META

@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 local PANEL = {}
 	local gradient = Material("vgui/gradient-d")
 	local gradient2 = Material("vgui/gradient-u")
@@ -54,7 +39,7 @@ local PANEL = {}
 
 				if (text:sub(1, 1) == "/") then
 					local arguments = self.arguments or {}
-					local command = arguments[1] or ""
+					local command = string.PatternSafe(arguments[1] or ""):lower()
 
 					nut.util.drawBlur(this)
 
@@ -67,7 +52,7 @@ local PANEL = {}
 					for k, v in SortedPairs(nut.command.list) do
 						local k2 = "/"..k
 
-						if (k2:match(command:lower())) then
+						if (k2:match(command)) then
 							local x, y = nut.util.drawText(k2.."  ", 4, i * 20, color)
 
 							if (k == command and v.syntax) then
@@ -221,6 +206,7 @@ local PANEL = {}
 		local name = L(filter)
 
 		local tab = self.tabs:Add("DButton")
+		tab:SetFont("nutChatFont")
 		tab:SetText(name:upper())
 		tab:SizeToContents()
 		tab:DockMargin(0, 0, 3, 0)
@@ -228,7 +214,6 @@ local PANEL = {}
 		tab:Dock(LEFT)
 		tab:SetTextColor(color_white)
 		tab:SetExpensiveShadow(1, Color(0, 0, 0, 200))
-		tab:SetFont("nutChatFont")
 		tab.Paint = PaintFilterButton
 		tab.DoClick = function(this)
 			this.active = !this.active

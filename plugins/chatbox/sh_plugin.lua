@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 PLUGIN.name = "Chatbox"
 PLUGIN.author = "Chessnut"
 PLUGIN.desc = "Adds a chatbox that replaces the default one."
@@ -48,13 +33,6 @@ if (CLIENT) then
 		end
 	end
 
-	if (NS_DEVELOPER) then
-		if (IsValid(PLUGIN.panel)) then
-			PLUGIN.panel:Remove()
-			PLUGIN:createChat()
-		end
-	end
-
 	chat.nutAddText = chat.nutAddText or chat.AddText
 
 	local PLUGIN = PLUGIN
@@ -78,9 +56,16 @@ if (CLIENT) then
 			chat.PlaySound()
 		end
 	end
+
+	concommand.Add("fixchatplz", function()
+		if (IsValid(PLUGIN.panel)) then
+			PLUGIN.panel:Remove()
+			PLUGIN:createChat()
+		end
+	end)
 else
 	netstream.Hook("msg", function(client, text)
-		if ((client.nutNextChat or 0) < CurTime()) then
+		if ((client.nutNextChat or 0) < CurTime() and text:find("%S")) then
 			hook.Run("PlayerSay", client, text)
 			client.nutNextChat = CurTime() + math.max(#text / 250, 0.4)
 		end

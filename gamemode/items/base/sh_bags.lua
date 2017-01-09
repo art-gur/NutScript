@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 ITEM.name = "Bag"
 ITEM.desc = "A bag to hold items."
 ITEM.model = "models/props_c17/suitcase001a.mdl"
@@ -59,19 +44,42 @@ ITEM.functions.View = {
 function ITEM:onInstanced(invID, x, y)
 	local inventory = nut.item.inventories[invID]
 
-	if (inventory) then
-		nut.item.newInv(inventory.owner, self.uniqueID, function(inventory)
-			self:setData("id", inventory:getID())
-		end)
+	nut.item.newInv(inventory and inventory.owner or 0, self.uniqueID, function(inventory)
+		self:setData("id", inventory:getID())
+	end)
+end
+
+function ITEM:getInv()
+	local index = self:getData("id")
+
+	if (index) then
+		return nut.item.inventories[index]
 	end
 end
 
 -- Called when the item first appears for a client.
-function ITEM:onSendData(client)
-	local inventory = nut.item.inventories[self:getData("id")]
+function ITEM:onSendData()
+	local index = self:getData("id")
 
-	if (inventory) then
-		inventory:sync(client)
+	if (index) then
+		local inventory = nut.item.inventories[index]
+
+		if (inventory) then
+			inventory:sync(self.player)
+		else
+			local owner = self.player:getChar():getID()
+
+			nut.item.restoreInv(self:getData("id"), self.invWidth, self.invHeight, function(inventory)
+				inventory:setOwner(owner, true)
+			end)
+		end
+	else
+		local inventory = nut.item.inventories[self.invID]
+		local client = self.player
+
+		nut.item.newInv(self.player:getChar():getID(), self.uniqueID, function(inventory)
+			self:setData("id", inventory:getID())
+		end)
 	end
 end
 
@@ -89,8 +97,18 @@ end
 function ITEM:onCanBeTransfered(oldInventory, newInventory)
 	local index = self:getData("id")
 
-	if (newInventory and newInventory:getID() == index) then
-		return false
+	if (newInventory) then
+		local index2 = newInventory:getID()
+
+		if (index == index2) then
+			return false
+		end
+
+		for k, v in pairs(self:getInv():getItems()) do
+			if (v:getData("id") == index2) then
+				return false
+			end
+		end
 	end
 	
 	return !newInventory or newInventory:getID() != oldInventory:getID()

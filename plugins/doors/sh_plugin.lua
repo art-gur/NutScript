@@ -1,18 +1,3 @@
---[[
-	NutScript is free software: you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation, either version 3 of the License, or
-	(at your option) any later version.
-
-	NutScript is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
-
-	You should have received a copy of the GNU General Public License
-	along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 PLUGIN.name = "Doors"
 PLUGIN.author = "Chessnut"
 PLUGIN.desc = "A simple door system."
@@ -30,17 +15,23 @@ do
 	local entityMeta = FindMetaTable("Entity")
 
 	function entityMeta:checkDoorAccess(client, access)
-		if (!self:isDoor() or !self.nutAccess) then
+		if (!self:isDoor()) then
 			return false
 		end
 
 		access = access or DOOR_GUEST
 
-		if (hook.Run("CanPlayerAccessDoor", client, door, access) == true) then
+		local parent = self.nutParent
+
+		if (IsValid(parent)) then
+			return parent:checkDoorAccess(client, access)
+		end
+
+		if (hook.Run("CanPlayerAccessDoor", client, self, access)) then
 			return true
 		end
 
-		if ((self.nutAccess[client] or 0) >= access) then
+		if (self.nutAccess and (self.nutAccess[client] or 0) >= access) then
 			return true
 		end
 
@@ -49,7 +40,7 @@ do
 
 	if (SERVER) then
 		function entityMeta:removeDoorAccessData()
-			for k, v in pairs(self.nutAccess) do
+			for k, v in pairs(self.nutAccess or {}) do
 				netstream.Start(k, "doorMenu")
 			end
 			

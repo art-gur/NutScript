@@ -1,24 +1,9 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 PLUGIN.name = "Recognition"
 PLUGIN.author = "Chessnut"
 PLUGIN.desc = "Adds the ability to recognize people."
 
 do
-	local character = FindMetaTable("Character")
+	local character = nut.meta.character
 
 	if (SERVER) then
 		function character:recognize(id)
@@ -47,24 +32,47 @@ do
 	end
 
 	function PLUGIN:IsCharRecognised(char, id)
-		local recognized = char:getData("rgn", "");
+		local other = nut.char.loaded[id]
+
+		if (other) then
+			local faction = nut.faction.indices[other:getFaction()]
+
+			if (faction and faction.isGloballyRecognized) then
+				return true
+			end
+		end
+
+		local recognized = char:getData("rgn", "")
 		
 		if (recognized == "") then
-			return false;
-		end;
+			return false
+		end
 		
-		return recognized:find(","..id..",");
+		return recognized:find(","..id..",") != nil and true or false
 	end
 end
 
 if (CLIENT) then
-	local whitelist = {}
-	whitelist["ic"] = true
-	whitelist["y"] = true
-	whitelist["w"] = true
+	CHAT_RECOGNIZED = CHAT_RECOGNIZED or {}
+	CHAT_RECOGNIZED["ic"] = true
+	CHAT_RECOGNIZED["y"] = true
+	CHAT_RECOGNIZED["w"] = true
+	CHAT_RECOGNIZED["me"] = true
 
 	function PLUGIN:IsRecognizedChatType(chatType)
-		return whitelist[chatType]
+		return CHAT_RECOGNIZED[chatType]
+	end
+
+	function PLUGIN:GetDisplayedDescription(client)
+		if (client:getChar() and client != LocalPlayer() and !LocalPlayer():getChar():doesRecognize(client:getChar()) and !hook.Run("IsPlayerRecognized", client)) then
+			return L"noRecog"
+		end
+	end
+
+	function PLUGIN:ShouldAllowScoreboardOverride(client)
+		if (nut.config.get("sbRecog")) then
+			return true
+		end
 	end
 
 	function PLUGIN:GetDisplayedName(client, chatType)
@@ -72,8 +80,8 @@ if (CLIENT) then
 			local character = client:getChar()
 			local ourCharacter = LocalPlayer():getChar()
 
-			if (ourCharacter and character and (!ourCharacter:doesRecognize(character) or hook.Run("IsPlayerRecognized", client))) then
-				if (hook.Run("IsRecognizedChatType", chatType)) then
+			if (ourCharacter and character and !ourCharacter:doesRecognize(character) and !hook.Run("IsPlayerRecognized", client)) then
+				if (chatType and hook.Run("IsRecognizedChatType", chatType)) then
 					local description = character:getDesc()
 
 					if (#description > 40) then
@@ -81,7 +89,7 @@ if (CLIENT) then
 					end
 
 					return "["..description.."]"
-				else
+				elseif (!chatType) then
 					return L"unknown"
 				end
 			end

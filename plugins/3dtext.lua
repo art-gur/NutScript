@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 PLUGIN.name = "3D Text"
 PLUGIN.author = "Chessnut"
 PLUGIN.desc = "Adds text that can be placed on the map."
@@ -97,14 +82,7 @@ else
 			local object = nut.markup.parse("<font=nut3D2DFont>"..text:gsub("\\n", "\n"))
 			-- We want to draw a shadow on the text object.
 			object.onDrawText = function(text, font, x, y, color, alignX, alignY, alpha)
-				draw.TextShadow({
-					pos = {x, y},
-					color = ColorAlpha(color, alpha),
-					text = text,
-					xalign = 0,
-					yalign = alignY,
-					font = font
-				}, 1, alpha)
+				draw.SimpleTextOutlined(text, font, x, y, ColorAlpha(color, alpha), alignX, alignY, 2, color_black)
 			end
 
 			-- Add the text to a list of drawn text objects.
@@ -180,7 +158,7 @@ nut.command.add("textadd", {
 		angles:RotateAroundAxis(angles:Forward(), 90)
 		
 		-- Add the text.
-		PLUGIN:addText(position, angles, arguments[1], tonumber(arguments[2]))
+		PLUGIN:addText(position + angles:Up()*0.1, angles, arguments[1], tonumber(arguments[2]))
 
 		-- Tell the player the text was added.
 		return L("textAdded", client)

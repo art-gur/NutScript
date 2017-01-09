@@ -1,36 +1,21 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 local playerMeta = FindMetaTable("Player")
 
 -- Player data (outside of characters) handling.
 do
 	function playerMeta:loadNutData(callback)
-		local name = self:Name()
+		local name = self:steamName()
 		local steamID64 = self:SteamID64()
 		local timeStamp = math.floor(os.time())
 		local ip = self:IPAddress():match("%d+%.%d+%.%d+%.%d+")
 
-		nut.db.query("SELECT _data FROM nut_players WHERE _steamID = "..steamID64, function(data)
+		nut.db.query("SELECT _data, _playTime FROM nut_players WHERE _steamID = "..steamID64, function(data)
 			if (IsValid(self) and data and data[1] and data[1]._data) then
 				nut.db.updateTable({
 					_lastJoin = timeStamp,
 					_address = ip
 				}, nil, "players", "_steamID = "..steamID64)
 
-				self.nutPlayTime = tonumber(data._playTime) or 0
+				self.nutPlayTime = tonumber(data[1]._playTime) or 0
 				self.nutData = util.JSONToTable(data[1]._data)
 
 				if (callback) then

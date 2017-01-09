@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 local PANEL = {}
 	local gradient = surface.GetTextureID("vgui/gradient-u")
 	local gradient2 = surface.GetTextureID("vgui/gradient-d")
@@ -193,7 +178,7 @@ local PANEL = {}
 				end
 			end
 
-			if (count > 0 and #nut.characters < nut.config.get("maxChars", 5)) then
+			if (count > 0 and #nut.characters < nut.config.get("maxChars", 5) and hook.Run("ShouldMenuButtonShow", "create") != false) then
 				AddMenuLabel("create", function()
 					ClearAllButtons(function()
 						CreateReturnButton()
@@ -294,7 +279,7 @@ local PANEL = {}
 				end)
 			end
 
-			if (#nut.characters > 0) then
+			if (#nut.characters > 0 and hook.Run("ShouldMenuButtonShow", "load") != false) then
 				AddMenuLabel("load", function()
 					ClearAllButtons(function()
 						CreateReturnButton()
@@ -326,7 +311,7 @@ local PANEL = {}
 							surface.SetTexture(gradient2)
 							surface.DrawTexturedRect(0, 0, w, h)
 
-							this:PaintModel()
+							this:PaintModel(w, h)
 						end
 						self.fadePanels[#self.fadePanels + 1] = self.model
 
@@ -407,6 +392,16 @@ local PANEL = {}
 								self.model:SetModel(character:getModel())
 								self.model.teamColor = team.GetColor(character:getFaction())
 
+								if (IsValid(self.model.Entity)) then
+									self.model.Entity:SetSkin(character:getData("skin", 0))
+
+									local groups = character:getData("groups", {})
+
+									for k, v in pairs(groups) do
+										self.model.Entity:SetBodygroup(k, v)
+									end
+								end
+								
 								id = character:getID()
 							end
 						end
@@ -485,31 +480,39 @@ local PANEL = {}
 
 			local hasCharacter = LocalPlayer().getChar and LocalPlayer():getChar()
 
-			AddMenuLabel(hasCharacter and "return" or "leave", function()
-				if (!hasCharacter) then
-					if (self.darkness:GetAlpha() == 0) then
-						self.title:SetZPos(-99)
-						self.darkness:SetZPos(99)
-						self.darkness:AlphaTo(255, 1.25, 0, function()
-							timer.Simple(0.5, function()
-								RunConsoleCommand("disconnect")
+			if (hook.Run("ShouldMenuButtonShow", "leave") != false) then
+				AddMenuLabel(hasCharacter and "return" or "leave", function()
+					if (!hasCharacter) then
+						if (self.darkness:GetAlpha() == 0) then
+							self.title:SetZPos(-99)
+							self.darkness:SetZPos(99)
+							self.darkness:AlphaTo(255, 1.25, 0, function()
+								timer.Simple(0.5, function()
+									RunConsoleCommand("disconnect")
+								end)
 							end)
+						end
+					else
+						self:AlphaTo(0, 0.5, 0, function()
+							self:Remove()
+							if (OPENNEXT) then
+								vgui.Create("nutCharMenu")
+							end
 						end)
 					end
-				else
-					self:AlphaTo(0, 0.5, 0, function()
-						self:Remove()
-						if (OPENNEXT) then
-							vgui.Create("nutCharMenu")
-						end
-					end)
-				end
-			end, true)
+				end, true)
+			end
 		end
 
 		CreateMainButtons()
 	end
-
+	
+	function PANEL:Think()
+		if (input.IsKeyDown(KEY_F1) and LocalPlayer():getChar() and !self.choosing) then
+			self:Remove()
+		end
+	end
+	
 	function PANEL:playMusic()
 		if (nut.menuMusic) then
 			nut.menuMusic:Stop()
@@ -523,6 +526,8 @@ local PANEL = {}
 		if (source:find("%S")) then
 			local function callback(music, errorID, fault)
 				if (music) then
+					music:SetVolume(0.5)
+
 					nut.menuMusic = music
 					nut.menuMusic:Play()
 				else
@@ -537,6 +542,16 @@ local PANEL = {}
 				sound.PlayFile("sound/"..source, "noplay", callback)
 			end
 		end
+
+		for k, v in ipairs(engine.GetAddons()) do
+			if (v.wsid == "207739713" and v.mounted) then
+				return
+			end
+		end
+
+		Derma_Query(L"contentWarning", L"contentTitle", L"yes", function()
+			gui.OpenURL("http://steamcommunity.com/sharedfiles/filedetails/?id=207739713")
+		end, L"no")
 	end
 
 	function PANEL:OnRemove()
@@ -547,7 +562,7 @@ local PANEL = {}
 			timer.Create("nutMusicFader", 0.1, 0, function()
 				if (nut.menuMusic) then
 					fraction = 1 - math.TimeFraction(start, finish, RealTime())
-					nut.menuMusic:SetVolume(fraction)
+					nut.menuMusic:SetVolume(fraction * 0.5)
 
 					if (fraction <= 0) then
 						nut.menuMusic:Stop()

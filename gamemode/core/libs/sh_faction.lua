@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 nut.faction = nut.faction or {}
 nut.faction.teams = nut.faction.teams or {}
 nut.faction.indices = nut.faction.indices or {}
@@ -52,13 +37,26 @@ function nut.faction.loadFromDir(directory)
 			end
 
 			nut.util.include(directory.."/"..v, "shared")
-			team.SetUp(FACTION.index, FACTION.name or "Unknown", FACTION.color or Color(125, 125, 125))
 
-			if (!FACTION.models) then
-				FACTION.models = CITIZEN_MODELS
+			if (!FACTION.name) then
+				FACTION.name = "Unknown"
+				ErrorNoHalt("Faction '"..niceName.."' is missing a name. You need to add a FACTION.name = \"Name\"\n")
 			end
 
-			FACTION.uniqueID = niceName
+			if (!FACTION.desc) then
+				FACTION.desc = "noDesc"
+				ErrorNoHalt("Faction '"..niceName.."' is missing a description. You need to add a FACTION.desc = \"Description\"\n")
+			end
+
+			if (!FACTION.color) then
+				FACTION.color = Color(150, 150, 150)
+				ErrorNoHalt("Faction '"..niceName.."' is missing a color. You need to add FACTION.color = Color(1, 2, 3)\n")
+			end
+
+			team.SetUp(FACTION.index, FACTION.name or "Unknown", FACTION.color or Color(125, 125, 125))
+			
+			FACTION.models = FACTION.models or CITIZEN_MODELS
+			FACTION.uniqueID = FACTION.uniqueID or niceName
 
 			for k, v in pairs(FACTION.models) do
 				if (type(v) == "string") then
@@ -71,6 +69,14 @@ function nut.faction.loadFromDir(directory)
 			nut.faction.indices[FACTION.index] = FACTION
 			nut.faction.teams[niceName] = FACTION
 		FACTION = nil
+	end
+end
+
+function nut.faction.getIndex(uniqueID)
+	for k, v in ipairs(nut.faction.indices) do
+		if (v.uniqueID == uniqueID) then
+			return k
+		end
 	end
 end
 

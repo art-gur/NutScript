@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 local PANEL = {}
 	local gradient = nut.util.getMaterial("vgui/gradient-u")
 	local gradient2 = nut.util.getMaterial("vgui/gradient-d")
@@ -54,7 +39,26 @@ local PANEL = {}
 		hook.Run("CreateMenuButtons", tabs)
 
 		self.tabList = {}
+		
 		for name, callback in SortedPairs(tabs) do
+			if (type(callback) == "string") then
+				local body = callback
+
+				if (body:sub(1, 4) == "http") then
+					callback = function(panel)
+						local html = panel:Add("DHTML")
+						html:Dock(FILL)
+						html:OpenURL(body)
+					end
+				else
+					callback = function(panel)
+						local html = panel:Add("DHTML")
+						html:Dock(FILL)
+						html:SetHTML(body)
+					end
+				end
+			end
+
 			local tab = self:addTab(L(name), callback, name)
 			self.tabList[name] = tab
 		end
@@ -124,7 +128,7 @@ local PANEL = {}
 	function PANEL:addTab(name, callback, uniqueID)
 		name = L(name)
 
-		local function PaintTab(tab, w, h)
+		local function paintTab(tab, w, h)
 			if (self.activeTab == tab) then
 				surface.SetDrawColor(ColorAlpha(nut.config.get("color"), 200))
 				surface.DrawRect(0, h - 8, w, 8)
@@ -146,7 +150,7 @@ local PANEL = {}
 			tab:SetExpensiveShadow(1, Color(0, 0, 0, 150))
 			tab:SizeToContentsX()
 			tab:SetWide(w + 32)
-			tab.Paint = PaintTab
+			tab.Paint = paintTab
 			tab.DoClick = function(this)
 				if (IsValid(nut.gui.info)) then
 					nut.gui.info:Remove()
@@ -155,7 +159,9 @@ local PANEL = {}
 				self.panel:Clear()
 
 				self.title:SetText(this:GetText())
+				self.title:SizeToContentsY()
 				self.title:AlphaTo(255, 0.5)
+				self.title:MoveAbove(self.panel, 8)
 
 				self.panel:AlphaTo(255, 0.5, 0.1)
 				self.activeTab = this
@@ -171,6 +177,12 @@ local PANEL = {}
 		self.tabs:SetPos((ScrW() * 0.5) - (self.tabs:GetWide() * 0.5), 0)
 
 		return tab
+	end
+
+	function PANEL:setActiveTab(key)
+		if (IsValid(self.tabList[key])) then
+			self.tabList[key]:DoClick()
+		end
 	end
 
 	function PANEL:OnRemove()

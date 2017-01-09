@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 nut.flag = nut.flag or {}
 nut.flag.list = nut.flag.list or {}
 
@@ -47,7 +32,7 @@ end
 
 do
 	-- Extend the character metatable to allow flag giving/taking.
-	local character = FindMetaTable("Character")
+	local character = nut.meta.character
 
 	-- Flags can only be set server-side.
 	if (SERVER) then
@@ -58,19 +43,29 @@ do
 
 		-- Add a flag to the flag string.
 		function character:giveFlags(flags)
+			local addedFlags = ""
+
 			-- Get the individual flags within the flag string.
 			for i = 1, #flags do
 				local flag = flags:sub(i, i)
 				local info = nut.flag.list[flag]
 
-				-- Call the callback if the flag has been registered.
-				if (info and info.callback) then
-					-- Pass the player and true (true for the flag being given.)
-					info.callback(self:getPlayer(), true)
+				if (info) then
+					if (!character:hasFlags(flag)) then
+						addedFlags = addedFlags..flag
+					end
+
+					if (info.callback) then
+						-- Pass the player and true (true for the flag being given.)
+						info.callback(self:getPlayer(), true)
+					end
 				end
 			end
 
-			self:setFlags(self:getFlags()..flags)
+			-- Only change the flag string if it is different.
+			if (addedFlags != "") then
+				self:setFlags(self:getFlags()..addedFlags)
+			end
 		end
 
 		-- Remove the flags from the flag string.
@@ -133,4 +128,10 @@ do
 			client:StripWeapon("gmod_tool")
 		end
 	end)
+
+	nut.flag.add("c", "Access to spawn chairs.")
+	nut.flag.add("C", "Access to spawn vehicles.")
+	nut.flag.add("r", "Access to spawn ragdolls.")
+	nut.flag.add("e", "Access to spawn props.")
+	nut.flag.add("n", "Access to spawn NPCs.")
 end

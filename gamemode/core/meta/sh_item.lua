@@ -1,26 +1,13 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
-local _R = debug.getregistry()
-
-local ITEM = _R.Item or {}
+local ITEM = nut.meta.item or {}
 ITEM.__index = ITEM
 ITEM.name = "Undefined"
 ITEM.desc = ITEM.desc or "An item that is undefined."
 ITEM.id = ITEM.id or 0
 ITEM.uniqueID = "undefined"
+
+function ITEM:__eq(other)
+	return self:getID() == other:getID()
+end
 
 function ITEM:__tostring()
 	return "item["..self.uniqueID.."]["..self.id.."]"
@@ -60,11 +47,11 @@ end
 function ITEM:call(method, client, entity, ...)
 	local oldPlayer, oldEntity = self.player, self.entity
 
-	self.player = self.player or client
-	self.entity = self.entity or entity
+	self.player = client or self.player
+	self.entity = entity or self.entity
 
-	if (self.functions[method]) then
-		local results = {self.functions[method](self, ...)}
+	if (type(self[method]) == "function") then
+		local results = {self[method](self, ...)}
 
 		self.player = nil
 		self.entity = nil
@@ -94,12 +81,12 @@ function ITEM:getOwner()
 	end
 end
 
-function ITEM:setData(key, value, receivers, noSave, checkEntity)
+function ITEM:setData(key, value, receivers, noSave, noCheckEntity)
 	self.data = self.data or {}
 	self.data[key] = value
 
 	if (SERVER) then
-		if (checkEntity) then
+		if (!noCheckEntity) then
 			local ent = self:getEntity()
 
 			if (IsValid(ent)) then
@@ -112,7 +99,7 @@ function ITEM:setData(key, value, receivers, noSave, checkEntity)
 	end
 
 	if (receivers != false) then
-		if (self:getOwner()) then
+		if (receivers or self:getOwner()) then
 			netstream.Start(receivers or self:getOwner(), "invData", self:getID(), key, value)
 		end
 	end
@@ -132,29 +119,40 @@ function ITEM:getData(key, default)
 
 		local value = self.data[key]
 
-		if (value == nil) then
-			if (IsValid(self.entity)) then
-				local data = self.entity:getNetVar("data", {})
-				local value = data[key]
-
-				if (value != nil) then
-					return value
-				end
-			end
-
-			return default
-		else
+		if (value != nil) then
 			return value
+		elseif (IsValid(self.entity)) then
+			local data = self.entity:getNetVar("data", {})
+			local value = data[key]
+
+			if (value != nil) then
+				return value
+			end
 		end
 	else
 		self.data = {}
+	end
+
+	if (default != nil) then
 		return default
+	end
+
+	local itemTable = nut.item.list[self.uniqueID]
+
+	if (itemTable and itemTable.data) then
+		return itemTable.data[key]
 	end
 end
 
 function ITEM:hook(name, func)
 	if (name) then
 		self.hooks[name] = func
+	end
+end
+
+function ITEM:postHook(name, func)
+	if (name) then
+		self.postHooks[name] = func
 	end
 end
 
@@ -188,6 +186,12 @@ function ITEM:remove()
 	end
 
 	if (SERVER and !noReplication) then
+		local entity = self:getEntity()
+
+		if (IsValid(entity)) then
+			entity:Remove()
+		end
+		
 		local receiver = inv.getReceiver and inv:getReceiver()
 
 		if (self.invID != 0) then
@@ -227,9 +231,12 @@ if (SERVER) then
 	function ITEM:spawn(position, angles)
 		-- Check if the item has been created before.
 		if (nut.item.instances[self.id]) then
+			local client
+
 			-- If the first argument is a player, then we will find a position to drop
 			-- the item based off their aim.
 			if (type(position) == "Player") then
+				client = position
 				position = position:getItemDropPos()
 			end
 
@@ -239,6 +246,11 @@ if (SERVER) then
 			entity:SetAngles(angles or Angle(0, 0, 0))
 			-- Make the item represent this item.
 			entity:setItem(self.id)
+
+			if (IsValid(client)) then
+				entity.nutSteamID = client:SteamID()
+				entity.nutCharID = client:getChar():getID()
+			end
 
 			-- Return the newly created entity.
 			return entity
@@ -299,10 +311,18 @@ if (SERVER) then
 						curInv:remove(self.id, false, true)
 						self.invID = invID
 
+						if (self.onTransfered) then
+							self:onTransfered(curInv, inventory)
+						end
+
 						return true
 					elseif (self.invID > 0 and prevID == 0) then
 						local inventory = nut.item.inventories[0]
 						inventory[self.id] = nil
+
+						if (self.onTransfered) then
+							self:onTransfered(curInv, inventory)
+						end
 
 						return true
 					end
@@ -316,15 +336,15 @@ if (SERVER) then
 				nut.db.query("UPDATE nut_items SET _invID = 0 WHERE _itemID = "..self.id)
 
 				if (isLogical != true) then
-					local entity = self:spawn(client)
-					entity.prevPlayer = client
-					entity.prevOwner = client:getChar().id
-
-					return entity		
+					return self:spawn(client)	
 				else
 					local inventory = nut.item.inventories[0]
 					inventory[self:getID()] = self
 
+					if (self.onTransfered) then
+						self:onTransfered(curInv, inventory)
+					end
+						
 					return true
 				end
 			else
@@ -336,4 +356,4 @@ if (SERVER) then
 	end
 end
 
-_R.Item = ITEM
+nut.meta.item = ITEM

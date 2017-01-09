@@ -1,18 +1,3 @@
---[[
-    NutScript is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    NutScript is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with NutScript.  If not, see <http://www.gnu.org/licenses/>.
---]]
-
 -- Define gamemode information.
 GM.Name = "NutScript 1.1"
 GM.Author = "Chessnut and Black Tea"
@@ -60,49 +45,11 @@ do
 
 		return result
 	end
-
-	local entityMeta = FindMetaTable("Entity")
-
-	-- Developer branch stuff
-	if (VERSION <= 140714 and 
-		!entityMeta.GetSubMaterial and
-		!entityMeta.SetSubMaterial) then
-		ErrorNoHalt("Warning! Some features may not work completely since you are not using the developer branch of Garry's Mod.\n")
-
-		entityMeta.GetSubMaterial = function() end
-		entityMeta.SetSubMaterial = function() end
-
-		--[[---------------------------------------------------------
-		   Name: string.PatternSafe( string )
-		   Desc: Takes a string and escapes it for insertion in to a Lua pattern
-		-----------------------------------------------------------]]
-		local pattern_escape_replacements = {
-			["("] = "%(",
-			[")"] = "%)",
-			["."] = "%.",
-			["%"] = "%%",
-			["+"] = "%+",
-			["-"] = "%-",
-			["*"] = "%*",
-			["?"] = "%?",
-			["["] = "%[",
-			["]"] = "%]",
-			["^"] = "%^",
-			["$"] = "%$",
-			["\0"] = "%z"
-		}
-
-		function string.PatternSafe( str )
-
-			return ( str:gsub( ".", pattern_escape_replacements ) )
-
-		end
-	end
 end
 
 -- Include core framework files.
 nut.util.include("core/cl_skin.lua")
-nut.util.includeDir("core/libs/external")
+nut.util.includeDir("core/libs/thirdparty")
 nut.util.include("core/sh_config.lua")
 nut.util.includeDir("core/libs")
 nut.util.includeDir("core/derma")
@@ -138,6 +85,22 @@ function GM:OnReloaded()
 		-- Reload the scoreboard.
 		if (IsValid(nut.gui.score)) then
 			nut.gui.score:Remove()
+		end
+	else
+		-- Auto-reload support for faction pay timers.
+		for index, faction in ipairs(nut.faction.indices) do
+			for k, v in ipairs(team.GetPlayers(index)) do
+				if (faction.pay and faction.pay > 0) then
+					timer.Adjust("nutSalary"..v:UniqueID(), faction.payTime or 300, 0, function()
+						local pay = hook.Run("GetSalaryAmount", v, faction) or faction.pay
+
+						v:getChar():giveMoney(pay)
+						v:notifyLocalized("salary", nut.currency.get(pay))
+					end)
+				else
+					timer.Remove("nutSalary"..v:UniqueID())
+				end
+			end
 		end
 	end
 end
